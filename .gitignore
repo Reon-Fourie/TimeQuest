@@ -1,0 +1,50 @@
+## .NET / C#
+bin/
+obj/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+.vs/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+bld/
+[Bb]in/
+[Oo]bj/
+[Ll]og/
+[Ll]ogs/
+
+## NuGet
+*.nupkg
+*.snupkg
+project.lock.json
+project.fragment.lock.json
+artifacts/
+packages/
+
+## Rider / JetBrains
+.idea/
+
+## Visual Studio
+.vs/
+*.rsuser
+*.MoXXXX
+
+## ASP.NET
+**/wwwroot/lib/
+
+## EF Core migrations backups
+*.bak
+
+## OS
+.DS_Store
+Thumbs.db
+desktop.ini
+
+## Secrets (keep appsettings.json, exclude overrides with real secrets)
+appsettings.*.local.json
+secrets.json

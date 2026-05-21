@@ -18,10 +18,11 @@ Repo root: $repoRoot
 Inputs to read:
   - $repoRoot\agents-v2\pipeline\01-spec\spec.md
   - $repoRoot\agents-v2\pipeline\02-architecture\design.md
-  - $repoRoot\agents-v2\pipeline\03-data\design.md
-  - any critic-*.md under $repoRoot\agents-v2\pipeline\04-backend\
+  - $repoRoot\agents-v2\pipeline\03-uiux\design.md
+  - $repoRoot\agents-v2\pipeline\04-data\design.md
+  - any critic-*.md under $repoRoot\agents-v2\pipeline\05-backend\
 
-Write summary to: $repoRoot\agents-v2\pipeline\04-backend\summary.md
+Write summary to: $repoRoot\agents-v2\pipeline\05-backend\summary.md
 Implementation goes under the project structure the Architect specified.
 
 Run 'dotnet build' and 'dotnet test' before finalising summary.md. Real results only.

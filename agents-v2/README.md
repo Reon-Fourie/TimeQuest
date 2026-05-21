@@ -1,6 +1,6 @@
 # agents-v2 — Full SDLC Agent Pipeline
 
-A 13-agent + 1 orchestrator pipeline that takes a raw user idea and produces a deployable system. Each phase pairs a **producer** with a **critic**; the orchestrator loops producer→critic until the critic approves, then advances.
+A 16-agent + 1 orchestrator pipeline that takes a raw user idea and produces a deployable system. Each phase pairs a **producer** with a **critic** (security review and deployment are solo); the orchestrator loops producer→critic until the critic approves, then advances.
 
 ## Pipeline Phases
 
@@ -8,11 +8,13 @@ A 13-agent + 1 orchestrator pipeline that takes a raw user idea and produces a d
 |---|---|---|---|
 | 1 | BA (interactive) | BA Critic | `pipeline/01-spec/` |
 | 2 | System Architect | Architect Critic | `pipeline/02-architecture/` |
-| 3 | Data Designer | Data Critic | `pipeline/03-data/` |
-| 4 | Backend Developer | Backend Critic | `pipeline/04-backend/` |
-| 5 | Frontend Developer | Frontend Critic | `pipeline/05-frontend/` |
-| 6 | QA / Tester | QA Critic | `pipeline/06-qa/` |
-| 7 | Deployment Agent | (no critic) | `pipeline/07-deployment/` |
+| 3 | UI/UX Designer | UI/UX Critic | `pipeline/03-uiux/` |
+| 4 | Data Designer | Data Critic | `pipeline/04-data/` |
+| 5 | Backend Developer | Backend Critic | `pipeline/05-backend/` |
+| 6 | Frontend Developer | Frontend Critic | `pipeline/06-frontend/` |
+| 7 | QA / Tester | QA Critic | `pipeline/07-qa/` |
+| 8 | Security Reviewer | (self-verdict, blocks on Critical) | `pipeline/08-security/` |
+| 9 | Deployment Agent | (no critic) | `pipeline/09-deployment/` |
 
 ## Agent Communication via Filesystem (not direct invocation)
 
@@ -27,7 +29,9 @@ VERDICT: APPROVED
 VERDICT: BLOCKED
 ```
 
-If `BLOCKED`, the orchestrator re-runs the producer (passing the critic's numbered fix list as `-CriticFeedback`). Iteration cap = 3 per phase by default.
+If `BLOCKED`, the orchestrator re-runs the producer (which finds and addresses the latest `critic-N.md` from its output dir). Iteration cap = 3 per phase by default.
+
+The security review phase is special: it has no critic but writes its own verdict line at the end of `pipeline/08-security/report.md`. The orchestrator parses that directly. A `BLOCKED` security verdict halts the pipeline for human review — no iteration loop, because security findings require human judgment to fix.
 
 This pattern minimizes orchestrator token usage: it never loads full artifacts into its own context — only the verdict line.
 
@@ -39,6 +43,8 @@ This pattern minimizes orchestrator token usage: it never loads full artifacts i
 | BA critic | Haiku 4.5 | Checks for clarity / structure |
 | Architect | Sonnet 4.6 | Trade-off reasoning across Azure services |
 | Architect critic | Sonnet 4.6 | Architecture review needs depth |
+| UI/UX designer | Sonnet 4.6 | User flows, IA, design tokens |
+| UI/UX critic | Sonnet 4.6 | Accessibility + state coverage need depth |
 | Data designer | Sonnet 4.6 | Schema design |
 | Data critic | Sonnet 4.6 | Query / index review needs depth |
 | Backend dev | Sonnet 4.6 | Code generation |
@@ -47,6 +53,7 @@ This pattern minimizes orchestrator token usage: it never loads full artifacts i
 | Frontend critic | Sonnet 4.6 | Accessibility + correctness |
 | QA | Sonnet 4.6 | Test plan + Playwright |
 | QA critic | Haiku 4.5 | Plan completeness check |
+| Security Reviewer | Sonnet 4.6 | OWASP / secrets / IaC scan needs depth |
 | Deployment | Sonnet 4.6 | Bicep + YAML |
 | Orchestrator | n/a (PS) | PowerShell, no LLM cost |
 

@@ -14,10 +14,10 @@ $prompt = @"
 You are the QA Critic. Read CLAUDE.md in $agentDir.
 
 Iteration: $Iteration
-Review: $repoRoot\agents-v2\pipeline\06-qa\test-plan.md and $repoRoot\agents-v2\pipeline\06-qa\summary.md
+Review: $repoRoot\agents-v2\pipeline\07-qa\test-plan.md and $repoRoot\agents-v2\pipeline\07-qa\summary.md
 Cross-check: $repoRoot\agents-v2\pipeline\01-spec\spec.md
 Inspect (do not run): tests/e2e/ project structure
-Write critique to: $repoRoot\agents-v2\pipeline\06-qa\critic-$Iteration.md
+Write critique to: $repoRoot\agents-v2\pipeline\07-qa\critic-$Iteration.md
 
 LAST LINE: 'VERDICT: APPROVED' or 'VERDICT: BLOCKED'.
 "@

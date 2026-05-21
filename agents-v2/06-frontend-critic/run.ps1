@@ -17,9 +17,9 @@ Iteration: $Iteration
 Repo root: $repoRoot
 You MAY run 'dotnet build' / 'dotnet test'.
 
-Review summary: $repoRoot\agents-v2\pipeline\05-frontend\summary.md
+Review summary: $repoRoot\agents-v2\pipeline\06-frontend\summary.md
 Cross-check spec + backend summary.
-Write critique to: $repoRoot\agents-v2\pipeline\05-frontend\critic-$Iteration.md
+Write critique to: $repoRoot\agents-v2\pipeline\06-frontend\critic-$Iteration.md
 
 LAST LINE: 'VERDICT: APPROVED' or 'VERDICT: BLOCKED'.
 "@

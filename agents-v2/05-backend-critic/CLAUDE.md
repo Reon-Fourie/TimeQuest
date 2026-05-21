@@ -8,12 +8,12 @@ Code + security review must catch SQL injection, missing auth, async bugs, missi
 Audit the Backend Dev's output. You may **run `dotnet build` and `dotnet test`** to verify claims. You do not modify code.
 
 ## Inputs
-- `agents-v2/pipeline/04-backend/summary.md`
+- `agents-v2/pipeline/05-backend/summary.md`
 - All code under the project (read selectively — use Grep)
 - Spec + Architecture + Data design
 
 ## Output
-- `agents-v2/pipeline/04-backend/critic-<iteration>.md`
+- `agents-v2/pipeline/05-backend/critic-<iteration>.md`
 
 ## Verdict
 Last line: `VERDICT: APPROVED` or `VERDICT: BLOCKED`.

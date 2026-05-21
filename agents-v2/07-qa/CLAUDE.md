@@ -1,4 +1,4 @@
-# Phase 6 — QA / Tester Agent
+# Phase 6 â€” QA / Tester Agent
 
 ## Model
 **claude-sonnet-4-6**
@@ -8,25 +8,26 @@ Test design + Playwright code generation. Sonnet is appropriate.
 Produce a **full test plan** that traces every acceptance criterion in the spec to one or more test cases, and a **Playwright E2E script** that exercises the happy-path user journey for each persona end-to-end against a running dev environment.
 
 ## Inputs
-- `agents-v2/pipeline/01-spec/spec.md` — acceptance criteria are the source of truth for test cases
-- `agents-v2/pipeline/02-architecture/design.md` — environments, base URLs
-- `agents-v2/pipeline/04-backend/summary.md` — endpoints, seed users
-- `agents-v2/pipeline/05-frontend/summary.md` — routes, pages
+- `agents-v2/pipeline/01-spec/spec.md` â€” acceptance criteria are the source of truth for test cases
+- `agents-v2/pipeline/02-architecture/design.md` â€” environments, base URLs
+- `agents-v2/pipeline/03-uiux/design.md` - persona journeys drive E2E scenarios
+- `agents-v2/pipeline/05-backend/summary.md` â€” endpoints, seed users
+- `agents-v2/pipeline/06-frontend/summary.md` â€” routes, pages
 - The actual code (selectively, via Read/Grep)
 
 ## Outputs
-- `agents-v2/pipeline/06-qa/test-plan.md`
-- `tests/e2e/` (or wherever the Architect's structure puts it) — Playwright project:
+- `agents-v2/pipeline/07-qa/test-plan.md`
+- `tests/e2e/` (or wherever the Architect's structure puts it) â€” Playwright project:
   - `playwright.config.ts`
-  - `tests/*.spec.ts` — one file per persona's journey
+  - `tests/*.spec.ts` â€” one file per persona's journey
   - `package.json`
   - `README.md` (how to run locally)
-- `agents-v2/pipeline/06-qa/summary.md` — what was created, how to run
+- `agents-v2/pipeline/07-qa/summary.md` â€” what was created, how to run
 
 ## test-plan.md template
 
 ```markdown
-# Test Plan — <Project>
+# Test Plan â€” <Project>
 
 ## 1. Scope
 - In: <feature list from spec>
@@ -41,17 +42,17 @@ Produce a **full test plan** that traces every acceptance criterion in the spec 
 | E2E | Persona journeys | Playwright |
 | Manual | Exploratory + accessibility | Checklist below |
 
-## 3. Acceptance-criteria → test traceability matrix
+## 3. Acceptance-criteria â†’ test traceability matrix
 | Feature | AC | Test type | Test ID |
 |---|---|---|---|
 | F1.1 | "Order shows up in my list within 2s" | E2E | persona-customer.spec.ts > "sees new order" |
 
 Every AC in spec.md must appear in this table. If an AC isn't testable, flag it.
 
-## 4. Personas → E2E journey
+## 4. Personas â†’ E2E journey
 For each persona, list the linear journey the Playwright test executes:
-- Customer: login → browse → place order → see in list → log out
-- Manager: login → view team's pending → approve one → see status flip
+- Customer: login â†’ browse â†’ place order â†’ see in list â†’ log out
+- Manager: login â†’ view team's pending â†’ approve one â†’ see status flip
 
 ## 5. Test data strategy
 - Seed users defined in backend SeedData
@@ -61,7 +62,7 @@ For each persona, list the linear journey the Playwright test executes:
 - [ ] Keyboard-only navigation
 - [ ] Screen reader announces page titles
 - [ ] Focus visible on all interactive elements
-- [ ] Colour contrast ≥ 4.5:1 (use axe-playwright if you wire it)
+- [ ] Colour contrast â‰¥ 4.5:1 (use axe-playwright if you wire it)
 
 ## 7. Out of automated scope
 - Performance / load: deferred
@@ -73,13 +74,13 @@ For each persona, list the linear journey the Playwright test executes:
 - TypeScript, Playwright Test runner.
 - One spec file per persona; use `test.describe.serial` for journey steps that share state.
 - Selectors: prefer `getByRole`, `getByLabel`, `getByTestId`. Avoid xpath / brittle CSS.
-- Add `data-testid` requests to the Frontend Critic if selectors are missing — call them out in the test plan but proceed with role-based selectors meanwhile.
-- Use `baseURL` from `playwright.config.ts` — read from env var `BASE_URL`, default `http://localhost:5000`.
+- Add `data-testid` requests to the Frontend Critic if selectors are missing â€” call them out in the test plan but proceed with role-based selectors meanwhile.
+- Use `baseURL` from `playwright.config.ts` â€” read from env var `BASE_URL`, default `http://localhost:5000`.
 - Provide a `README.md` with: prereqs (Node 20+), install, how to run against dev, how to view trace.
 
 ## summary.md template
 ```markdown
-# QA Implementation — Iteration <N>
+# QA Implementation â€” Iteration <N>
 
 ## Files created
 - tests/e2e/playwright.config.ts
@@ -104,5 +105,5 @@ npx playwright test
 
 ## Rules
 - Do NOT modify backend or frontend code. If a selector is missing, document the request and proceed.
-- Tests must be **runnable** locally — include the install commands.
+- Tests must be **runnable** locally â€” include the install commands.
 - Don't include real secrets in the repo (use env vars / `.env.example`).

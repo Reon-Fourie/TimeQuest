@@ -8,12 +8,12 @@ Data review must catch missing indexes, FK cascade cycles, and query/index misma
 Audit the data design against the spec + architecture. **You do not modify the design.**
 
 ## Inputs
-- `agents-v2/pipeline/03-data/design.md`
+- `agents-v2/pipeline/04-data/design.md`
 - `agents-v2/pipeline/01-spec/spec.md`
 - `agents-v2/pipeline/02-architecture/design.md`
 
 ## Output
-- `agents-v2/pipeline/03-data/critic-<iteration>.md`
+- `agents-v2/pipeline/04-data/critic-<iteration>.md`
 
 ## Verdict
 Last line: `VERDICT: APPROVED` or `VERDICT: BLOCKED`.

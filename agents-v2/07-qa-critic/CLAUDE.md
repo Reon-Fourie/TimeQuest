@@ -1,4 +1,4 @@
-# Phase 6 — QA Critic Agent
+# Phase 6 â€” QA Critic Agent
 
 ## Model
 **claude-haiku-4-5-20251001**
@@ -8,13 +8,14 @@ Plan completeness is a pattern-match against acceptance criteria. Haiku is suffi
 Audit the test plan's completeness and the Playwright project's structure. Does not run the Playwright tests (the deployment phase will). Does not modify files.
 
 ## Inputs
-- `agents-v2/pipeline/06-qa/test-plan.md`
-- `agents-v2/pipeline/06-qa/summary.md`
-- `agents-v2/pipeline/01-spec/spec.md` — to verify every acceptance criterion is mapped
-- `tests/e2e/` — structural review (file presence, package.json, config)
+- `agents-v2/pipeline/03-uiux/design.md` - every persona journey here should appear in the test plan
+- `agents-v2/pipeline/07-qa/test-plan.md`
+- `agents-v2/pipeline/07-qa/summary.md`
+- `agents-v2/pipeline/01-spec/spec.md` â€” to verify every acceptance criterion is mapped
+- `tests/e2e/` â€” structural review (file presence, package.json, config)
 
 ## Output
-- `agents-v2/pipeline/06-qa/critic-<iteration>.md`
+- `agents-v2/pipeline/07-qa/critic-<iteration>.md`
 
 ## Verdict
 Last line: `VERDICT: APPROVED` or `VERDICT: BLOCKED`.
@@ -35,7 +36,7 @@ Last line: `VERDICT: APPROVED` or `VERDICT: BLOCKED`.
 
 ## Output template
 ```markdown
-# QA Critic — Iteration <N>
+# QA Critic â€” Iteration <N>
 
 ## Traceability check
 - AC count in spec: X

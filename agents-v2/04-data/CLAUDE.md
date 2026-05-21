@@ -10,10 +10,10 @@ You design the relational data model that supports every feature in the BA spec,
 ## Inputs
 - `agents-v2/pipeline/01-spec/spec.md` (features + acceptance criteria drive what data must exist)
 - `agents-v2/pipeline/02-architecture/design.md` (confirm DB tech is SQL Server / Azure SQL)
-- `agents-v2/pipeline/03-data/critic-<N>.md` if iterating
+- `agents-v2/pipeline/04-data/critic-<N>.md` if iterating
 
 ## Output
-- `agents-v2/pipeline/03-data/design.md`
+- `agents-v2/pipeline/04-data/design.md`
 
 ## design.md template
 

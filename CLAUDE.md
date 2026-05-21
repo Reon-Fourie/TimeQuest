@@ -40,7 +40,7 @@ There is no test project yet; the Integration agent (phase 4) will add one.
 
 Two pipelines live in this repo:
 
-- **`agents-v2/`** — current generation. Full 13-agent SDLC (BA → Architect → Data → Backend → Frontend → QA → Deployment), each producer paired with a critic, coordinated by `agents-v2/orchestrator/run.ps1`. Producers + critics talk via files under `agents-v2/pipeline/`; the orchestrator only parses `VERDICT: APPROVED|BLOCKED` lines to drive iteration. See `agents-v2/README.md`.
+- **`agents-v2/`** — current generation. Full 16-agent SDLC (BA → Architect → UI/UX → Data → Backend → Frontend → QA → Security Review → Deployment), each producer paired with a critic (security and deployment are solo), coordinated by `agents-v2/orchestrator/run.ps1`. Producers + critics talk via files under `agents-v2/pipeline/`; the orchestrator only parses `VERDICT: APPROVED|BLOCKED` lines to drive iteration. Security review writes its verdict at the end of its own `report.md` and halts the pipeline on `BLOCKED`. See `agents-v2/README.md`.
 - **`agents/`** — first-generation 6-agent build pipeline tied specifically to the TimeQuest backend plan (foundation → repos → services → integration → QA). Kept as reference. Its paths reference `C:\TimeQuest\` but the repo is at `C:\Dev\TimeQuest\`.
 
 When iterating on the agent system itself, edit `agents-v2/`. Don't bring the old `agents/` along.

@@ -1,4 +1,4 @@
-# Phase 5 — Frontend Critic Agent
+# Phase 5 â€” Frontend Critic Agent
 
 ## Model
 **claude-sonnet-4-6**
@@ -7,13 +7,14 @@
 Audit Blazor implementation. May run `dotnet build` / `dotnet test`. Does not modify code.
 
 ## Inputs
-- `agents-v2/pipeline/05-frontend/summary.md`
+- `agents-v2/pipeline/03-uiux/design.md` - check that the implementation honours the wireframes and tokens
+- `agents-v2/pipeline/06-frontend/summary.md`
 - Source under the project's component directories
 - Backend `Shared` project (verify DTO reuse, not duplication)
 - Spec for feature coverage
 
 ## Output
-- `agents-v2/pipeline/05-frontend/critic-<iteration>.md`
+- `agents-v2/pipeline/06-frontend/critic-<iteration>.md`
 
 ## Verdict
 Last line: `VERDICT: APPROVED` or `VERDICT: BLOCKED`.
@@ -48,7 +49,7 @@ Last line: `VERDICT: APPROVED` or `VERDICT: BLOCKED`.
 
 ## Output template
 ```markdown
-# Frontend Critic — Iteration <N>
+# Frontend Critic â€” Iteration <N>
 
 ## Build & test gate
 - Build: PASS / FAIL

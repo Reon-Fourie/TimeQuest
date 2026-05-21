@@ -10,9 +10,9 @@ Produce infrastructure-as-code and CI/CD that stand up the Architect's design as
 ## Inputs
 - `agents-v2/pipeline/02-architecture/design.md` — Azure services + environments
 - `agents-v2/pipeline/01-spec/spec.md` — for naming / context
-- `agents-v2/pipeline/04-backend/summary.md` — what to deploy
-- `agents-v2/pipeline/05-frontend/summary.md` — same
-- `agents-v2/pipeline/06-qa/summary.md` — Playwright project location (smoke test in pipeline)
+- `agents-v2/pipeline/05-backend/summary.md` — what to deploy
+- `agents-v2/pipeline/06-frontend/summary.md` — same
+- `agents-v2/pipeline/07-qa/summary.md` — Playwright project location (smoke test in pipeline)
 
 ## Outputs
 - `infra/` (or `iac/`) — Bicep or AVM modules
@@ -24,8 +24,8 @@ Produce infrastructure-as-code and CI/CD that stand up the Architect's design as
   - `ci.yml` — build, unit + integration tests, on every push
   - `cd-dev.yml` — provision (Bicep what-if → deploy) + app deploy to dev on merge to main
   - Skeleton `cd-qa.yml`, `cd-staging.yml`, `cd-prod.yml` with TODO markers
-- `agents-v2/pipeline/07-deployment/summary.md`
-- `agents-v2/pipeline/07-deployment/runbook.md` — how to deploy first time, how to roll back, how to rotate secrets
+- `agents-v2/pipeline/09-deployment/summary.md`
+- `agents-v2/pipeline/09-deployment/runbook.md` — how to deploy first time, how to roll back, how to rotate secrets
 
 ## summary.md template
 ```markdown

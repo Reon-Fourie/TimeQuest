@@ -18,14 +18,15 @@ Repo root: $repoRoot
 Inputs:
   - $repoRoot\agents-v2\pipeline\01-spec\spec.md
   - $repoRoot\agents-v2\pipeline\02-architecture\design.md
-  - $repoRoot\agents-v2\pipeline\04-backend\summary.md
-  - $repoRoot\agents-v2\pipeline\05-frontend\summary.md
-  - any critic-*.md under $repoRoot\agents-v2\pipeline\06-qa\
+  - $repoRoot\agents-v2\pipeline\03-uiux\design.md
+  - $repoRoot\agents-v2\pipeline\05-backend\summary.md
+  - $repoRoot\agents-v2\pipeline\06-frontend\summary.md
+  - any critic-*.md under $repoRoot\agents-v2\pipeline\07-qa\
 
 Write:
-  - Test plan: $repoRoot\agents-v2\pipeline\06-qa\test-plan.md
+  - Test plan: $repoRoot\agents-v2\pipeline\07-qa\test-plan.md
   - Playwright project: tests\e2e\ (use whichever path the Architect specified)
-  - Summary: $repoRoot\agents-v2\pipeline\06-qa\summary.md
+  - Summary: $repoRoot\agents-v2\pipeline\07-qa\summary.md
 "@
 
 if ($Auto) {

@@ -1,7 +1,7 @@
 ﻿[CmdletBinding()]
 param(
     [int]$StartPhase = 1,
-    [int]$EndPhase = 7,
+    [int]$EndPhase = 9,
     [int]$MaxIterations = 3
 )
 
@@ -25,14 +25,18 @@ function Write-Log {
 }
 
 # Pipeline definition. ProducerDir matches the agents-v2 folder name; OutputDir is under pipeline/.
+# ProducerVerdictFile: when HasCritic is $false but this is set, the orchestrator parses
+# VERDICT from the named file in OutputDir instead of looking for a critic-N.md.
 $phases = @(
-    @{ Num = 1; Name = "BA";         ProducerDir = "01-ba";        CriticDir = "01-ba-critic";        OutputDir = "01-spec";         HasCritic = $true;  Interactive = $true  }
-    @{ Num = 2; Name = "Architect";  ProducerDir = "02-architect"; CriticDir = "02-architect-critic"; OutputDir = "02-architecture"; HasCritic = $true;  Interactive = $false }
-    @{ Num = 3; Name = "Data";       ProducerDir = "03-data";      CriticDir = "03-data-critic";      OutputDir = "03-data";         HasCritic = $true;  Interactive = $false }
-    @{ Num = 4; Name = "Backend";    ProducerDir = "04-backend";   CriticDir = "04-backend-critic";   OutputDir = "04-backend";      HasCritic = $true;  Interactive = $false }
-    @{ Num = 5; Name = "Frontend";   ProducerDir = "05-frontend";  CriticDir = "05-frontend-critic";  OutputDir = "05-frontend";     HasCritic = $true;  Interactive = $false }
-    @{ Num = 6; Name = "QA";         ProducerDir = "06-qa";        CriticDir = "06-qa-critic";        OutputDir = "06-qa";           HasCritic = $true;  Interactive = $false }
-    @{ Num = 7; Name = "Deployment"; ProducerDir = "07-deployment"; CriticDir = $null;                OutputDir = "07-deployment";   HasCritic = $false; Interactive = $false }
+    @{ Num = 1; Name = "BA";         ProducerDir = "01-ba";         CriticDir = "01-ba-critic";        OutputDir = "01-spec";         HasCritic = $true;  Interactive = $true;  ProducerVerdictFile = $null }
+    @{ Num = 2; Name = "Architect";  ProducerDir = "02-architect";  CriticDir = "02-architect-critic"; OutputDir = "02-architecture"; HasCritic = $true;  Interactive = $false; ProducerVerdictFile = $null }
+    @{ Num = 3; Name = "UI/UX";      ProducerDir = "03-uiux";       CriticDir = "03-uiux-critic";      OutputDir = "03-uiux";         HasCritic = $true;  Interactive = $false; ProducerVerdictFile = $null }
+    @{ Num = 4; Name = "Data";       ProducerDir = "04-data";       CriticDir = "04-data-critic";      OutputDir = "04-data";         HasCritic = $true;  Interactive = $false; ProducerVerdictFile = $null }
+    @{ Num = 5; Name = "Backend";    ProducerDir = "05-backend";    CriticDir = "05-backend-critic";   OutputDir = "05-backend";      HasCritic = $true;  Interactive = $false; ProducerVerdictFile = $null }
+    @{ Num = 6; Name = "Frontend";   ProducerDir = "06-frontend";   CriticDir = "06-frontend-critic";  OutputDir = "06-frontend";     HasCritic = $true;  Interactive = $false; ProducerVerdictFile = $null }
+    @{ Num = 7; Name = "QA";         ProducerDir = "07-qa";         CriticDir = "07-qa-critic";        OutputDir = "07-qa";           HasCritic = $true;  Interactive = $false; ProducerVerdictFile = $null }
+    @{ Num = 8; Name = "Security";   ProducerDir = "08-security";   CriticDir = $null;                 OutputDir = "08-security";     HasCritic = $false; Interactive = $false; ProducerVerdictFile = "report.md" }
+    @{ Num = 9; Name = "Deployment"; ProducerDir = "09-deployment"; CriticDir = $null;                 OutputDir = "09-deployment";   HasCritic = $false; Interactive = $false; ProducerVerdictFile = $null }
 )
 
 function Get-Verdict {
@@ -82,6 +86,26 @@ function Invoke-Phase {
         }
 
         if (-not $Phase.HasCritic) {
+            # No critic - either advance silently (e.g. deployment) or parse producer's own verdict file (e.g. security).
+            if ($Phase.ProducerVerdictFile) {
+                $verdictFile = "$pipelineRoot\$($Phase.OutputDir)\$($Phase.ProducerVerdictFile)"
+                $verdict = Get-Verdict -CriticFile $verdictFile
+                Write-Log "Phase $num producer-verdict: $verdict (from $($Phase.ProducerVerdictFile))"
+                if ($verdict -eq "APPROVED") {
+                    Write-Host "`n[Phase $num : $name] APPROVED (producer verdict)`n" -ForegroundColor Green
+                    return $true
+                }
+                elseif ($verdict -eq "BLOCKED") {
+                    Write-Host "[Phase $num : $name] BLOCKED by producer verdict - halting for human review." -ForegroundColor Red
+                    Write-Host "Inspect $verdictFile for the findings." -ForegroundColor Red
+                    return $false
+                }
+                else {
+                    Write-Host "[Phase $num : $name] Producer verdict could not be parsed: $verdict" -ForegroundColor Red
+                    Write-Host "Inspect $verdictFile." -ForegroundColor Red
+                    return $false
+                }
+            }
             Write-Log "Phase $num has no critic - advancing."
             return $true
         }

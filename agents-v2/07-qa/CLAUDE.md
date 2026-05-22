@@ -32,6 +32,25 @@ Playwright project structure, playwright.config.ts conventions, selector strateg
 ### Sub-agent: `playwright-spec-drafter` (Haiku)
 Drafts one `.spec.ts` file per persona journey. Use for ALL spec drafting - do not write per-spec boilerplate inline.
 
+### Manual QA companion skills (load on demand)
+For ad-hoc / manual QA work alongside the automated test plan - retesting failures, verifying hotfixes, running the app against the spec by hand, or producing artefacts the orchestrator does not generate. Invoke by name via the Skill tool.
+
+- `ac-review` - Pre-testing AC quality gate. Invoke when spec.md AC clarity is in doubt before building the matrix.
+- `pr-review` - Compare a PR against the linked feature's AC via `gh pr view`. READY / CONDITIONAL / NOT READY verdict.
+- `regression-check` - "What else could break?" classification from a PR's file changes.
+- `env-check` - Verify branch / remote / dirty tree / `dotnet build` before a manual session.
+- `test-data` - Find safe-to-use ApplicationUser / TimeEntry / BadgeAward records in the local DB via SELECT only.
+- `test-cases` - Hand-written test-case template for AC the Playwright suite cannot cover (out-of-scope rows in §9).
+- `test-session` - Document a manual session for a GitHub issue / PR comment.
+- `db-check` - Read-only post-action DB verification (Status / Xp / Level / BadgeAward).
+- `api-test` - Drive a TimeQuest endpoint via curl with Identity cookie or bearer auth.
+- `integration-test` - Walk approval → XpService → BadgeService end-to-end against the DB.
+- `smoke-test` - Manual checklist across `/`, `/timesheet`, `/approvals`, `/leaderboard`, `/badges`. Companion to `tests/smoke.spec.ts`.
+- `bugs` - Produce a GitHub Issue body for failures found.
+- `retest` - Re-run an original bug's steps after a fix; FIXED / PARTIALLY FIXED / NOT FIXED.
+- `hotfix-test` - Focused fix-verification + adjacent regression for urgent merges.
+- `release-notes` - Wrap-up notes from a list of signed-off items.
+
 ## Workflow
 
 ### Step 1 - Absorb upstream
@@ -111,3 +130,34 @@ Fix issues inline. For systemic issues, re-invoke the sub-agent with iteration=2
 - For per-spec fixes, re-invoke `playwright-spec-drafter` with iteration=2 + findings.
 - For systemic fixes (e.g. add axe to all specs), edit in batch.
 - Add a changelog row to summary.md per fix.
+
+## Manual QA workflows
+When iterating outside the strict test-plan-and-Playwright pipeline - retesting failures, verifying a hotfix, exploratory passes, post-deploy checks - chain the companion skills as follows. Each step is a skill invocation; the user picks up where they need to.
+
+### 1. Pre-testing gate (before touching the app)
+`ac-review` → `pr-review` → `regression-check`
+Confirms AC is testable, the PR covers it, and identifies what else might break.
+
+### 2. Feature test session
+`env-check` → `test-data` → `test-cases` → `test-session` → `db-check` → `bugs`
+Branch + build sane, data identified, cases written, session executed, DB side-effects verified, failures logged.
+
+### 3. API-only verification
+`test-data` → `api-test` → `db-check`
+For when backend lands before frontend.
+
+### 4. Approval-flow integration walk
+`test-data` → `integration-test`
+Manager-approves-TimeEntry → XP awarded (Hours × 10) → Level recalculated → BadgeAward inserted, plus the negative cases (cross-team approval, self-approval, re-approval, zero hours).
+
+### 5. Post-build / post-deploy smoke
+`smoke-test`
+Quick pass after a fresh build or CD-dev deploy.
+
+### 6. Bug lifecycle (post-fix)
+`retest` for normal fixes; `hotfix-test` for urgent out-of-cycle merges.
+Re-runs original steps + targeted regression.
+
+### 7. Release wrap-up
+`release-notes`
+Groups signed-off items into GitHub-release-ready notes with a sign-off block.

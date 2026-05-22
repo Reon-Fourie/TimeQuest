@@ -1,0 +1,79 @@
+@page "/financial/queue"
+@attribute [Authorize(Roles = "FinancialAdmin")]
+@rendermode InteractiveServer
+@inject ApprovalService ApprovalSvc
+@inject ILogger<Queue> Logger
+@implements IDisposable
+
+<PageTitle>Financial Queue</PageTitle>
+
+<div class="page-header">
+    <h1>Lead-approved timesheets</h1>
+</div>
+
+@if (loading)
+{
+    <LoadingSkeleton RowCount="5" />
+}
+else if (error is not null)
+{
+    <ErrorBanner Message="@error" OnRetry="LoadAsync" />
+}
+else if (queue.Count == 0)
+{
+    <EmptyState Title="No timesheets to review"
+                Message="Check back later — no timesheets are awaiting financial approval." />
+}
+else
+{
+    <table class="approvals-table" aria-label="Lead-approved timesheets awaiting financial review">
+        <thead>
+            <tr>
+                <th scope="col">Team Member</th>
+                <th scope="col">Week</th>
+                <th scope="col">Total Hours</th>
+                <th scope="col">Flagged</th>
+                <th scope="col">Status</th>
+                <th scope="col">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in queue)
+            {
+                <ApprovalQueueRow Item="@item" DetailHref="@($"/financial/queue/{item.TimesheetId}")" />
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<ApprovalQueueItemDto> queue = new();
+    private bool loading = true;
+    private string? error;
+    private CancellationTokenSource? cts;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        cts?.Cancel();
+        cts = new CancellationTokenSource();
+        loading = true;
+        error = null;
+        try
+        {
+            queue = await ApprovalSvc.GetFinancialQueueAsync(cts.Token);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to load financial queue");
+            error = "We couldn't load the queue. Try again.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    public void Dispose() => cts?.Cancel();
+}

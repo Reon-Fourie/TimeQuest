@@ -1,0 +1,150 @@
+@page "/financial/reports"
+@attribute [Authorize(Roles = "FinancialAdmin")]
+@rendermode InteractiveServer
+@inject ReportService ReportSvc
+@inject ILogger<Reports> Logger
+@implements IDisposable
+
+<PageTitle>Reconciliation Reports</PageTitle>
+
+<div class="page-header">
+    <h1>Reconciliation reports</h1>
+</div>
+
+<EditForm Model="@filterModel" OnValidSubmit="GenerateReport" aria-label="Report filters">
+    <DataAnnotationsValidator />
+    <div class="form-group">
+        <label for="report-type">Report type <span aria-hidden="true">*</span></label>
+        <InputSelect id="report-type" @bind-Value="filterModel.GroupBy" aria-required="true">
+            <option value="@ReportGroupBy.Daily">Daily</option>
+            <option value="@ReportGroupBy.Weekly">Weekly</option>
+            <option value="@ReportGroupBy.Monthly">Monthly</option>
+        </InputSelect>
+    </div>
+    <div class="form-group">
+        <label for="from-date">From <span aria-hidden="true">*</span></label>
+        <InputDate id="from-date" @bind-Value="filterModel.From" aria-required="true" />
+        <ValidationMessage For="@(() => filterModel.From)" />
+    </div>
+    <div class="form-group">
+        <label for="to-date">To <span aria-hidden="true">*</span></label>
+        <InputDate id="to-date" @bind-Value="filterModel.To" aria-required="true" />
+        <ValidationMessage For="@(() => filterModel.To)" />
+    </div>
+    @if (validationError is not null)
+    {
+        <p style="color:var(--color-danger);" role="alert">@validationError</p>
+    }
+    <button type="submit" class="btn btn-primary"
+            disabled="@generating">
+        @(generating ? "Generating report&#8230;" : "Generate report")
+    </button>
+</EditForm>
+
+@if (generating)
+{
+    <LoadingSkeleton RowCount="5" />
+}
+else if (reportError is not null)
+{
+    <ErrorBanner Message="@reportError" OnRetry="GenerateReport" />
+}
+else if (report is not null)
+{
+    <section aria-label="Report results" style="margin-top:var(--space-6);">
+        <div class="page-header">
+            <h2>Results &#8212; @report.From.ToString("dd/MM/yyyy") to @report.To.ToString("dd/MM/yyyy") (locked entries only)</h2>
+        </div>
+
+        @if (report.Groups.Count == 0)
+        {
+            <EmptyState Title="No locked entries in this period" />
+        }
+        else
+        {
+            @foreach (var group in report.Groups)
+            {
+                <details open>
+                    <summary style="font-weight:600;padding:var(--space-2) 0;">
+                        @group.PeriodLabel &#8212; @group.TotalHours hrs (@group.EntryCount entries)
+                    </summary>
+                    <table class="entries-table" aria-label="Report group @group.PeriodLabel">
+                        <thead>
+                            <tr>
+                                <th scope="col">Project</th>
+                                <th scope="col">Hours</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var ps in group.ByProject)
+                            {
+                                <tr>
+                                    <td>@ps.ProjectName</td>
+                                    <td>@ps.Hours</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </details>
+            }
+
+            <p style="font-weight:600;margin-top:var(--space-4);">Grand total: @report.TotalHours hrs</p>
+        }
+    </section>
+}
+
+@code {
+    private class ReportFilterModel
+    {
+        public ReportGroupBy GroupBy { get; set; } = ReportGroupBy.Weekly;
+
+        [System.ComponentModel.DataAnnotations.Required]
+        public DateTime From { get; set; } = DateTime.Today.AddDays(-7);
+
+        [System.ComponentModel.DataAnnotations.Required]
+        public DateTime To { get; set; } = DateTime.Today;
+    }
+
+    private readonly ReportFilterModel filterModel = new();
+    private ReconciliationReportDto? report;
+    private bool generating;
+    private string? reportError;
+    private string? validationError;
+    private CancellationTokenSource? cts;
+
+    private async Task GenerateReport()
+    {
+        validationError = null;
+        reportError = null;
+
+        var from = DateOnly.FromDateTime(filterModel.From);
+        var to   = DateOnly.FromDateTime(filterModel.To);
+
+        if (from > to)
+        {
+            validationError = "From date must be on or before To date.";
+            return;
+        }
+
+        cts?.Cancel();
+        cts = new CancellationTokenSource();
+        generating = true;
+        report = null;
+
+        try
+        {
+            report = await ReportSvc.GetReconciliationReportAsync(from, to, filterModel.GroupBy, cts.Token);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to generate report");
+            reportError = "Report generation failed. Try a smaller date range.";
+        }
+        finally
+        {
+            generating = false;
+        }
+    }
+
+    public void Dispose() => cts?.Cancel();
+}

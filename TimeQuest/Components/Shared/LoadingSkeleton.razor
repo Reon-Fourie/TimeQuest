@@ -1,0 +1,10 @@
+<div class="skeleton-container" role="status" aria-busy="true" aria-label="Loading...">
+    @for (int i = 0; i < RowCount; i++)
+    {
+        <div class="skeleton-row"></div>
+    }
+</div>
+
+@code {
+    [Parameter] public int RowCount { get; set; } = 5;
+}

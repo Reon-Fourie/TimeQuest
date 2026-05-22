@@ -1,0 +1,27 @@
+<tr>
+    <td>@Item.UserDisplayName</td>
+    <td>@Item.WeekStart.ToString("dd/MM/yyyy") &#8211; @Item.WeekEnd.ToString("dd/MM/yyyy")</td>
+    <td>@Item.TotalHours</td>
+    <td>
+        @if (Item.FlaggedCount > 0)
+        {
+            <span>@Item.FlaggedCount <span aria-hidden="true">(!)</span></span>
+        }
+        else
+        {
+            <span>0</span>
+        }
+    </td>
+    <td><StatusChip Status="@Item.Status" /></td>
+    <td>
+        <a href="@DetailHref" class="btn btn-sm btn-primary"
+           aria-label="Review timesheet for @Item.UserDisplayName, week @Item.WeekStart.ToString("dd/MM/yyyy")">
+            Review
+        </a>
+    </td>
+</tr>
+
+@code {
+    [Parameter, EditorRequired] public ApprovalQueueItemDto Item { get; set; } = null!;
+    [Parameter, EditorRequired] public string DetailHref { get; set; } = string.Empty;
+}

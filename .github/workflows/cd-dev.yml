@@ -1,0 +1,107 @@
+name: CD — Dev
+
+on:
+  workflow_run:
+    workflows: [CI]
+    branches: [main]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: deploy-dev
+  cancel-in-progress: false
+
+env:
+  AZURE_RESOURCE_GROUP: rg-timequest-dev-san
+  ENVIRONMENT_NAME: dev
+
+jobs:
+  deploy-infra:
+    name: Deploy Infra (Bicep)
+    runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' || github.event_name == 'workflow_dispatch' }}
+    environment: dev
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Create resource group
+        run: |
+          az group create \
+            --name $AZURE_RESOURCE_GROUP \
+            --location southafricanorth \
+            --tags environment=dev project=timequest
+
+      - name: Deploy Bicep
+        run: |
+          az deployment group create \
+            --resource-group $AZURE_RESOURCE_GROUP \
+            --template-file infra/main.bicep \
+            --parameters infra/parameters/dev.bicepparam \
+            --parameters sqlAdminObjectId=${{ secrets.SQL_ADMIN_OBJECT_ID }} \
+            --parameters sqlAdminLogin=${{ secrets.SQL_ADMIN_LOGIN }} \
+            --name deploy-$(date +%Y%m%d-%H%M%S)
+
+  deploy-app:
+    name: Deploy App
+    runs-on: ubuntu-latest
+    needs: deploy-infra
+    environment: dev
+
+    steps:
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: timequest-app
+          path: ./publish
+        continue-on-error: true
+
+      - name: Checkout (fallback if no artifact)
+        if: ${{ !env.artifact_downloaded }}
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10 (fallback build)
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Publish (fallback)
+        run: |
+          if [ ! -d "./publish" ] || [ -z "$(ls -A ./publish)" ]; then
+            dotnet publish TimeQuest/TimeQuest.csproj --configuration Release --output ./publish
+          fi
+
+      - name: Azure login (OIDC)
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy to App Service
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: app-timequest-dev-san
+          package: ./publish
+
+      - name: Smoke test
+        run: |
+          sleep 30
+          STATUS=$(curl -s -o /dev/null -w "%{http_code}" https://app-timequest-dev-san.azurewebsites.net/)
+          if [ "$STATUS" != "200" ] && [ "$STATUS" != "302" ]; then
+            echo "Smoke test failed: HTTP $STATUS"
+            exit 1
+          fi
+          echo "Smoke test passed: HTTP $STATUS"

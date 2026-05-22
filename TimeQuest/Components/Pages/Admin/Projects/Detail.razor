@@ -1,0 +1,250 @@
+@page "/admin/projects/{ProjectId:int}"
+@attribute [Authorize(Roles = "Administrator")]
+@rendermode InteractiveServer
+@inject AdminService AdminSvc
+@inject NavigationManager Nav
+@inject ILogger<Detail> Logger
+@implements IDisposable
+
+<PageTitle>Edit Project</PageTitle>
+
+@if (loading)
+{
+    <LoadingSkeleton RowCount="8" />
+}
+else if (error is not null)
+{
+    <ErrorBanner Message="@error" OnRetry="LoadDetail" />
+}
+else if (project is not null)
+{
+    <div class="page-header">
+        <a href="/admin/projects" class="btn btn-secondary">&#8592; Back</a>
+    </div>
+
+    <h1>Edit project: @project.Name</h1>
+
+    <EditForm Model="@editModel" OnValidSubmit="SaveChanges" aria-label="Edit project">
+        <DataAnnotationsValidator />
+        <div class="form-group">
+            <label for="proj-name">Project name <span aria-hidden="true">*</span></label>
+            <InputText id="proj-name"
+                       @bind-Value="editModel.Name"
+                       aria-required="true"
+                       maxlength="100" />
+            <ValidationMessage For="@(() => editModel.Name)" />
+        </div>
+        <div class="form-group">
+            <label for="billing-type">Billing type <span aria-hidden="true">*</span></label>
+            <InputSelect id="billing-type" @bind-Value="editModel.BillingType" aria-required="true">
+                <option value="@BillingType.TM">T&amp;M</option>
+                <option value="@BillingType.Fixed">Fixed</option>
+            </InputSelect>
+        </div>
+        <div class="form-group">
+            <label for="proj-desc">Description</label>
+            <InputTextArea id="proj-desc" @bind-Value="editModel.Description" rows="3" maxlength="500" />
+            <ValidationMessage For="@(() => editModel.Description)" />
+        </div>
+        @if (saveError is not null)
+        {
+            <ErrorBanner Message="@saveError" />
+        }
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary" disabled="@saving">
+                @(saving ? "Saving&#8230;" : "Save changes")
+            </button>
+            <a href="/admin/projects" class="btn btn-secondary">Cancel</a>
+            @if (project.IsActive)
+            {
+                <button type="button" class="btn btn-danger"
+                        @onclick="RequestDeactivate"
+                        style="margin-left:auto;"
+                        aria-label="Deactivate project @project.Name">
+                    Deactivate project
+                </button>
+            }
+        </div>
+    </EditForm>
+
+    <!-- Assigned users section -->
+    <section style="margin-top:var(--space-8);" aria-label="Assigned users">
+        <div class="page-header">
+            <h2>Assigned users (@project.Users.Count)</h2>
+        </div>
+
+        @if (project.Users.Count == 0)
+        {
+            <EmptyState Title="No users assigned yet"
+                        Message="Click &quot;+ Add users&quot; to assign people to this project" />
+        }
+        else
+        {
+            <table class="approvals-table" aria-label="Assigned users">
+                <thead>
+                    <tr>
+                        <th scope="col">Name</th>
+                        <th scope="col">Team</th>
+                        <th scope="col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var u in project.Users)
+                    {
+                        <tr>
+                            <td>@u.DisplayName</td>
+                            <td>@(u.TeamName ?? "&#8212;")</td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-danger"
+                                        @onclick="() => RemoveUser(u.UserId)"
+                                        aria-label="Remove @u.DisplayName from project">
+                                    Remove
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+}
+
+@if (pendingDeactivate)
+{
+    <ConfirmDialog Title="@($"Deactivate project: {project?.Name}?")"
+                  Message="Existing time entries will be preserved. The project will no longer appear in the time-entry picker."
+                  ConfirmLabel="Deactivate"
+                  OnConfirmed="ExecuteDeactivate"
+                  OnCancelled="CancelDeactivate" />
+}
+
+@code {
+    [Parameter] public int ProjectId { get; set; }
+
+    private class ProjectEditModel
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Project name is required.")]
+        [System.ComponentModel.DataAnnotations.MaxLength(100)]
+        public string Name { get; set; } = string.Empty;
+
+        public BillingType BillingType { get; set; }
+
+        [System.ComponentModel.DataAnnotations.MaxLength(500)]
+        public string? Description { get; set; }
+    }
+
+    private ProjectDetailDto? project;
+    private readonly ProjectEditModel editModel = new();
+    private bool loading = true;
+    private string? error;
+    private string? saveError;
+    private bool saving;
+    private bool pendingDeactivate;
+    private CancellationTokenSource? cts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        cts = new CancellationTokenSource();
+        await LoadDetail();
+    }
+
+    private async Task LoadDetail()
+    {
+        loading = true;
+        error = null;
+        try
+        {
+            var result = await AdminSvc.GetProjectDetailAsync(ProjectId, cts?.Token ?? default);
+            if (result.IsSuccess)
+            {
+                project = result.Value;
+                editModel.Name = project!.Name;
+                editModel.BillingType = project.BillingType;
+                editModel.Description = project.Description;
+            }
+            else
+            {
+                error = result.Error;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to load project {ProjectId}", ProjectId);
+            error = "We couldn't load this project. Try again.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task SaveChanges()
+    {
+        saving = true;
+        saveError = null;
+        try
+        {
+            var result = await AdminSvc.UpdateProjectAsync(ProjectId, new UpdateProjectRequest
+            {
+                Name = editModel.Name,
+                BillingType = editModel.BillingType,
+                Description = editModel.Description
+            }, cts?.Token ?? default);
+
+            if (result.IsSuccess)
+                await LoadDetail();
+            else
+                saveError = result.Error;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to save project {ProjectId}", ProjectId);
+            saveError = "We couldn't save changes. Try again.";
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private async Task RemoveUser(int userId)
+    {
+        saveError = null;
+        try
+        {
+            var result = await AdminSvc.RemoveUserFromProjectAsync(ProjectId, userId, cts?.Token ?? default);
+            if (result.IsSuccess)
+                await LoadDetail();
+            else
+                saveError = result.Error;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to remove user {UserId} from project {ProjectId}", userId, ProjectId);
+            saveError = "We couldn't remove the user. Try again.";
+        }
+    }
+
+    private void RequestDeactivate() => pendingDeactivate = true;
+    private void CancelDeactivate() => pendingDeactivate = false;
+
+    private async Task ExecuteDeactivate()
+    {
+        pendingDeactivate = false;
+        try
+        {
+            var result = await AdminSvc.DeactivateProjectAsync(0, ProjectId, cts?.Token ?? default);
+            if (result.IsSuccess)
+                Nav.NavigateTo("/admin/projects");
+            else
+                saveError = result.Error;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to deactivate project {ProjectId}", ProjectId);
+            saveError = "We couldn't deactivate the project. Try again.";
+        }
+    }
+
+    public void Dispose() => cts?.Cancel();
+}

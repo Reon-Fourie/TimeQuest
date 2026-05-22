@@ -1,0 +1,163 @@
+@page "/sysadmin/integrations"
+@attribute [Authorize(Roles = "SystemAdmin")]
+@rendermode InteractiveServer
+@inject TicketValidationService TicketSvc
+@inject ILogger<Integrations> Logger
+@implements IDisposable
+
+<PageTitle>Integrations</PageTitle>
+
+<div class="page-header">
+    <h1>Integration health</h1>
+</div>
+
+@if (loading)
+{
+    <LoadingSkeleton RowCount="6" />
+}
+else if (error is not null)
+{
+    <ErrorBanner Message="@error" OnRetry="LoadAsync" />
+}
+else
+{
+    <!-- Integration health status — stubbed; real adapters not yet wired -->
+    <table class="approvals-table" aria-label="Integration health status">
+        <thead>
+            <tr>
+                <th scope="col">Service</th>
+                <th scope="col">Status</th>
+                <th scope="col">Notes</th>
+            </tr>
+        </thead>
+        <tbody>
+            <tr>
+                <td>JIRA</td>
+                <td><span class="integration-status-degraded">&#9679; Status pending configuration</span></td>
+                <td>Adapter stub — OQ-009 credential resolution required</td>
+            </tr>
+            <tr>
+                <td>Linear</td>
+                <td><span class="integration-status-degraded">&#9679; Status pending configuration</span></td>
+                <td>Adapter stub — OQ-009 credential resolution required</td>
+            </tr>
+            <tr>
+                <td>Azure DevOps</td>
+                <td><span class="integration-status-degraded">&#9679; Status pending configuration</span></td>
+                <td>Adapter stub — OQ-009 credential resolution required</td>
+            </tr>
+        </tbody>
+    </table>
+
+    <!-- Ticket validation queue -->
+    <section style="margin-top:var(--space-8);" aria-label="Ticket validation queue">
+        <h2>Ticket validations &#8212; pending / failed</h2>
+
+        @if (pendingEntries.Count == 0)
+        {
+            <EmptyState Title="All ticket references validated"
+                        Message="Nothing to action" />
+        }
+        else
+        {
+            <table class="approvals-table" aria-label="Pending ticket validations">
+                <thead>
+                    <tr>
+                        <th scope="col">Entry ID</th>
+                        <th scope="col">Status</th>
+                        <th scope="col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var entry in pendingEntries)
+                    {
+                        <tr>
+                            <td>@entry.Id</td>
+                            <td>@entry.TicketValidationStatus</td>
+                            <td>
+                                <button type="button" class="btn btn-sm btn-primary"
+                                        @onclick="() => ApproveManually(entry.Id)"
+                                        disabled="@processingIds.Contains(entry.Id)"
+                                        aria-label="Manually approve ticket reference for entry @entry.Id">
+                                    Approve
+                                </button>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+
+    @if (actionError is not null)
+    {
+        <ErrorBanner Message="@actionError" />
+    }
+}
+
+@code {
+    // Stub DTO for pending ticket entries (service returns domain TimeEntry subset)
+    private record PendingEntry(int Id, TicketValidationStatus TicketValidationStatus);
+
+    private List<PendingEntry> pendingEntries = new();
+    private HashSet<int> processingIds = new();
+    private bool loading = true;
+    private string? error;
+    private string? actionError;
+    private CancellationTokenSource? cts;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        cts?.Cancel();
+        cts = new CancellationTokenSource();
+        loading = true;
+        error = null;
+        try
+        {
+            // TicketValidationService does not expose a list query yet.
+            // This is a stub placeholder — actual integration pending.
+            pendingEntries = new List<PendingEntry>();
+            await Task.CompletedTask;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to load integration status");
+            error = "We couldn't load integration status. Try again.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task ApproveManually(int entryId)
+    {
+        processingIds.Add(entryId);
+        actionError = null;
+        try
+        {
+            var result = await TicketSvc.ApproveManuallyAsync(entryId, 0, cts?.Token ?? default);
+            if (result.IsSuccess)
+            {
+                pendingEntries.RemoveAll(e => e.Id == entryId);
+            }
+            else
+            {
+                actionError = result.Error;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to manually approve ticket validation {EntryId}", entryId);
+            actionError = "We couldn't approve the ticket reference. Try again.";
+        }
+        finally
+        {
+            processingIds.Remove(entryId);
+        }
+    }
+
+    public void Dispose() => cts?.Cancel();
+}

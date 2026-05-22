@@ -1,0 +1,144 @@
+@page "/financial/lock"
+@attribute [Authorize(Roles = "FinancialAdmin")]
+@rendermode InteractiveServer
+@inject ApprovalService ApprovalSvc
+@inject ILogger<Lock> Logger
+@implements IDisposable
+
+<PageTitle>Lock Timesheets</PageTitle>
+
+<div class="page-header">
+    <h1>Ready to lock</h1>
+</div>
+
+@if (loading)
+{
+    <LoadingSkeleton RowCount="5" />
+}
+else if (error is not null)
+{
+    <ErrorBanner Message="@error" OnRetry="LoadAsync" />
+}
+else if (queue.Count == 0)
+{
+    <EmptyState Title="All timesheets locked"
+                Message="Nothing to do" />
+}
+else
+{
+    <table class="approvals-table" aria-label="Financially approved timesheets ready to lock">
+        <thead>
+            <tr>
+                <th scope="col">Team Member</th>
+                <th scope="col">Week</th>
+                <th scope="col">Total Hours</th>
+                <th scope="col">Status</th>
+                <th scope="col">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in queue)
+            {
+                <tr>
+                    <td>@item.UserDisplayName</td>
+                    <td>@item.WeekStart.ToString("dd/MM/yyyy") &#8211; @item.WeekEnd.ToString("dd/MM/yyyy")</td>
+                    <td>@item.TotalHours</td>
+                    <td><StatusChip Status="@item.Status" /></td>
+                    <td>
+                        <button type="button" class="btn btn-sm btn-danger"
+                                @onclick="() => RequestLock(item)"
+                                aria-label="Lock timesheet for @item.UserDisplayName, week @item.WeekStart.ToString("dd/MM/yyyy")">
+                            Lock
+                        </button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@if (pendingLockItem is not null)
+{
+    <ConfirmDialog Title="Lock timesheet?"
+                  Message="@($"{pendingLockItem.UserDisplayName} — {pendingLockItem.WeekStart.ToString("dd/MM/yyyy")}. This is permanent. Locked timesheets cannot be edited by any role.")"
+                  ConfirmLabel="Lock timesheet"
+                  OnConfirmed="ExecuteLock"
+                  OnCancelled="CancelLock" />
+}
+
+@if (actionError is not null)
+{
+    <ErrorBanner Message="@actionError" />
+}
+
+@code {
+    private List<ApprovalQueueItemDto> queue = new();
+    private bool loading = true;
+    private string? error;
+    private string? actionError;
+    private ApprovalQueueItemDto? pendingLockItem;
+    private CancellationTokenSource? cts;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        cts?.Cancel();
+        cts = new CancellationTokenSource();
+        loading = true;
+        error = null;
+        try
+        {
+            queue = await ApprovalSvc.GetLockQueueAsync(cts.Token);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to load lock queue");
+            error = "We couldn't load the queue. Try again.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private void RequestLock(ApprovalQueueItemDto item)
+    {
+        pendingLockItem = item;
+    }
+
+    private async Task ExecuteLock()
+    {
+        if (pendingLockItem is null) return;
+        actionError = null;
+        try
+        {
+            // Row version placeholder — use empty array; full implementation requires RowVersion from detail endpoint
+            var result = await ApprovalSvc.LockTimesheetAsync(0, pendingLockItem.TimesheetId, [], cts?.Token ?? default);
+            if (result.IsSuccess)
+            {
+                queue.RemoveAll(q => q.TimesheetId == pendingLockItem.TimesheetId);
+            }
+            else
+            {
+                actionError = result.Error;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to lock timesheet {TimesheetId}", pendingLockItem.TimesheetId);
+            actionError = "We couldn't lock the timesheet. Try again.";
+        }
+        finally
+        {
+            pendingLockItem = null;
+        }
+    }
+
+    private void CancelLock()
+    {
+        pendingLockItem = null;
+    }
+
+    public void Dispose() => cts?.Cancel();
+}

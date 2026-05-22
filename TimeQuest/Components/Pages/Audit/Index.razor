@@ -1,0 +1,208 @@
+@page "/audit"
+@attribute [Authorize(Roles = "FinancialAdmin,SystemAdmin")]
+@rendermode InteractiveServer
+@inject AuditService AuditSvc
+@inject ILogger<Index> Logger
+@implements IDisposable
+
+<PageTitle>Audit Log</PageTitle>
+
+<div class="page-header">
+    <h1>Audit log</h1>
+</div>
+
+<EditForm Model="@searchModel" OnValidSubmit="Search" aria-label="Audit log filters">
+    <DataAnnotationsValidator />
+    <div class="form-group">
+        <label for="audit-action">Action type</label>
+        <InputText id="audit-action" @bind-Value="searchModel.ActionType" placeholder="e.g. Timesheet.Locked" />
+        <ValidationMessage For="@(() => searchModel.ActionType)" />
+    </div>
+    <div class="form-group">
+        <label for="audit-from">Date from</label>
+        <InputDate id="audit-from" @bind-Value="searchModel.From" />
+    </div>
+    <div class="form-group">
+        <label for="audit-to">Date to</label>
+        <InputDate id="audit-to" @bind-Value="searchModel.To" />
+    </div>
+    @if (validationError is not null)
+    {
+        <p style="color:var(--color-danger);" role="alert">@validationError</p>
+    }
+    <button type="submit" class="btn btn-primary" disabled="@loading">Search</button>
+</EditForm>
+
+@if (loading)
+{
+    <LoadingSkeleton RowCount="5" />
+}
+else if (error is not null)
+{
+    <ErrorBanner Message="@error" OnRetry="Search" />
+}
+else if (result is not null)
+{
+    @if (result.Entries.Count == 0)
+    {
+        <EmptyState Title="No audit entries match your filters" />
+    }
+    else
+    {
+        <p style="color:var(--color-text-secondary);margin-top:var(--space-4);">
+            @result.TotalCount results
+        </p>
+
+        <table class="approvals-table" aria-label="Audit log entries">
+            <thead>
+                <tr>
+                    <th scope="col">Timestamp</th>
+                    <th scope="col">Actor</th>
+                    <th scope="col">Action</th>
+                    <th scope="col">Resource</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var entry in result.Entries)
+                {
+                    <tr @onclick="() => ToggleExpand(entry.Id)"
+                        style="cursor:pointer;">
+                        <td>@entry.TimestampUtc.ToString("dd/MM/yyyy HH:mm")</td>
+                        <td>@(entry.ActorDisplayName ?? "System")</td>
+                        <td>@entry.ActionType</td>
+                        <td>@entry.ResourceType/@entry.ResourceId</td>
+                    </tr>
+                    @if (expandedId == entry.Id)
+                    {
+                        <tr>
+                            <td colspan="4">
+                                <div style="background:var(--color-surface-raised);padding:var(--space-3);border-radius:var(--radius-md);">
+                                    <p><strong>Source IP:</strong> @(entry.SourceIp ?? "&#8212;")</p>
+                                    @if (entry.BeforeJson is not null)
+                                    {
+                                        <details>
+                                            <summary>Before</summary>
+                                            <pre style="overflow:auto;font-size:var(--font-size-sm);">@entry.BeforeJson</pre>
+                                        </details>
+                                    }
+                                    @if (entry.AfterJson is not null)
+                                    {
+                                        <details>
+                                            <summary>After</summary>
+                                            <pre style="overflow:auto;font-size:var(--font-size-sm);">@entry.AfterJson</pre>
+                                        </details>
+                                    }
+                                </div>
+                            </td>
+                        </tr>
+                    }
+                }
+            </tbody>
+        </table>
+
+        <!-- Pagination -->
+        <div class="pagination" aria-label="Pagination">
+            @if (cursorHistory.Count > 0)
+            {
+                <button type="button" class="btn btn-secondary" @onclick="PreviousPage">&#8592; Prev</button>
+            }
+            <span>Page @currentPage</span>
+            @if (result.NextCursorToken is not null)
+            {
+                <button type="button" class="btn btn-secondary" @onclick="NextPage">Next &#8594;</button>
+            }
+        </div>
+    }
+}
+
+@code {
+    private class AuditSearchModel
+    {
+        [System.ComponentModel.DataAnnotations.MaxLength(100)]
+        public string? ActionType { get; set; }
+
+        public DateTime? From { get; set; }
+
+        public DateTime? To { get; set; }
+    }
+
+    private readonly AuditSearchModel searchModel = new();
+    private AuditLogSearchResultDto? result;
+    private bool loading;
+    private string? error;
+    private string? validationError;
+    private long? expandedId;
+    private int currentPage = 1;
+    private readonly List<string?> cursorHistory = new();
+    private string? currentCursor;
+    private CancellationTokenSource? cts;
+
+    private async Task Search()
+    {
+        validationError = null;
+        if (searchModel.From.HasValue && searchModel.To.HasValue && searchModel.From > searchModel.To)
+        {
+            validationError = "From date must be on or before To date.";
+            return;
+        }
+
+        currentPage = 1;
+        cursorHistory.Clear();
+        currentCursor = null;
+        await LoadPage();
+    }
+
+    private async Task NextPage()
+    {
+        if (result?.NextCursorToken is null) return;
+        cursorHistory.Add(currentCursor);
+        currentCursor = result.NextCursorToken;
+        currentPage++;
+        await LoadPage();
+    }
+
+    private async Task PreviousPage()
+    {
+        if (cursorHistory.Count == 0) return;
+        currentCursor = cursorHistory[^1];
+        cursorHistory.RemoveAt(cursorHistory.Count - 1);
+        currentPage--;
+        await LoadPage();
+    }
+
+    private async Task LoadPage()
+    {
+        cts?.Cancel();
+        cts = new CancellationTokenSource();
+        loading = true;
+        error = null;
+        try
+        {
+            var request = new AuditSearchRequest
+            {
+                ActionType = string.IsNullOrWhiteSpace(searchModel.ActionType) ? null : searchModel.ActionType,
+                From = searchModel.From.HasValue ? new DateTimeOffset(searchModel.From.Value, TimeSpan.Zero) : null,
+                To = searchModel.To.HasValue ? new DateTimeOffset(searchModel.To.Value.AddDays(1).AddTicks(-1), TimeSpan.Zero) : null,
+                PageSize = 50,
+                CursorToken = currentCursor
+            };
+            result = await AuditSvc.SearchAsync(request, cts.Token);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to load audit log");
+            error = "We couldn't load the audit log. Try again.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private void ToggleExpand(long id)
+    {
+        expandedId = expandedId == id ? null : id;
+    }
+
+    public void Dispose() => cts?.Cancel();
+}

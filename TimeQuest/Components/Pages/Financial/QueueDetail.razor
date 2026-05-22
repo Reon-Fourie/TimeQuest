@@ -1,0 +1,196 @@
+@page "/financial/queue/{TimesheetId:int}"
+@attribute [Authorize(Roles = "FinancialAdmin")]
+@rendermode InteractiveServer
+@inject ApprovalService ApprovalSvc
+@inject NavigationManager Nav
+@inject ILogger<QueueDetail> Logger
+@implements IDisposable
+
+<PageTitle>Financial Approval</PageTitle>
+
+@if (loading)
+{
+    <LoadingSkeleton RowCount="8" />
+}
+else if (error is not null)
+{
+    <ErrorBanner Message="@error" OnRetry="LoadDetail" />
+}
+else if (detail is not null)
+{
+    <div class="page-header">
+        <a href="/financial/queue" class="btn btn-secondary">&#8592; Back</a>
+    </div>
+
+    <div class="timesheet-header">
+        <h1>Financial approval: @detail.UserDisplayName</h1>
+        <StatusChip Status="@detail.Status" />
+    </div>
+    <p style="color:var(--color-text-secondary);">
+        Week @detail.WeekStart.ToString("dd/MM/yyyy") &#8211; @detail.WeekEnd.ToString("dd/MM/yyyy")
+    </p>
+
+    @if (detail.Entries.Count == 0)
+    {
+        <EmptyState Title="No entries in this timesheet" />
+    }
+    else
+    {
+        <table class="entries-table" aria-label="Time entries for financial review">
+            <thead>
+                <tr>
+                    <th scope="col">Date</th>
+                    <th scope="col">Project</th>
+                    <th scope="col">Hours</th>
+                    <th scope="col">Notes</th>
+                    <th scope="col">Ticket</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var e in detail.Entries)
+                {
+                    <tr class="@(e.FlaggedForReview ? "entry-row--flagged" : "")">
+                        <td>@e.Date.ToString("dd/MM/yyyy")</td>
+                        <td>@e.ProjectName</td>
+                        <td>@e.Hours</td>
+                        <td>@e.Notes</td>
+                        <td>@(e.TicketRef ?? "&#8212;")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    @if (detail.Status == TimesheetStatus.ApprovedByLead)
+    {
+        <div class="approval-actions">
+            <button type="button" class="btn btn-primary"
+                    @onclick="Approve"
+                    disabled="@submitting"
+                    aria-label="Financially approve timesheet for @detail.UserDisplayName">
+                @(submitting ? "Approving&#8230;" : "Approve")
+            </button>
+
+            <EditForm Model="@rejectModel" OnValidSubmit="Reject" class="reject-form">
+                <DataAnnotationsValidator />
+                <label for="reject-comment">
+                    Comment (required to reject)
+                    <span style="color:var(--color-text-secondary);font-size:var(--font-size-sm);"> &#8212; minimum 10 characters</span>
+                </label>
+                <InputTextArea id="reject-comment"
+                               @bind-Value="rejectModel.Comment"
+                               rows="3"
+                               aria-required="true"
+                               placeholder="Enter a reason for rejection" />
+                <ValidationMessage For="@(() => rejectModel.Comment)" />
+                <button type="submit" class="btn btn-danger"
+                        disabled="@submitting"
+                        aria-label="Financially reject timesheet for @detail.UserDisplayName">
+                    @(submitting ? "Rejecting&#8230;" : "Reject")
+                </button>
+            </EditForm>
+        </div>
+    }
+
+    @if (actionError is not null)
+    {
+        <ErrorBanner Message="@actionError" />
+    }
+}
+
+@code {
+    [Parameter] public int TimesheetId { get; set; }
+
+    private class RejectFormModel
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Comment is required.")]
+        [System.ComponentModel.DataAnnotations.MinLength(10, ErrorMessage = "Comment must be at least 10 characters.")]
+        [System.ComponentModel.DataAnnotations.MaxLength(1000)]
+        public string Comment { get; set; } = string.Empty;
+    }
+
+    private TimesheetDetailDto? detail;
+    private bool loading = true;
+    private string? error;
+    private string? actionError;
+    private bool submitting;
+    private readonly RejectFormModel rejectModel = new();
+    private CancellationTokenSource? cts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        cts = new CancellationTokenSource();
+        await LoadDetail();
+    }
+
+    private async Task LoadDetail()
+    {
+        loading = true;
+        error = null;
+        try
+        {
+            var result = await ApprovalSvc.GetTimesheetDetailAsync(0, TimesheetId, cts?.Token ?? default);
+            if (result.IsSuccess)
+                detail = result.Value;
+            else
+                error = result.Error;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to load financial detail {TimesheetId}", TimesheetId);
+            error = "We couldn't load this timesheet. Try again.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task Approve()
+    {
+        submitting = true;
+        actionError = null;
+        try
+        {
+            var result = await ApprovalSvc.FinancialApproveAsync(0, TimesheetId, cts?.Token ?? default);
+            if (result.IsSuccess)
+                Nav.NavigateTo("/financial/queue");
+            else
+                actionError = result.Error;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to financially approve timesheet {TimesheetId}", TimesheetId);
+            actionError = "We couldn't approve the timesheet. Try again.";
+        }
+        finally
+        {
+            submitting = false;
+        }
+    }
+
+    private async Task Reject()
+    {
+        submitting = true;
+        actionError = null;
+        try
+        {
+            var result = await ApprovalSvc.FinancialRejectAsync(0, TimesheetId, rejectModel.Comment, cts?.Token ?? default);
+            if (result.IsSuccess)
+                Nav.NavigateTo("/financial/queue");
+            else
+                actionError = result.Error;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to financially reject timesheet {TimesheetId}", TimesheetId);
+            actionError = "We couldn't reject the timesheet. Try again.";
+        }
+        finally
+        {
+            submitting = false;
+        }
+    }
+
+    public void Dispose() => cts?.Cancel();
+}

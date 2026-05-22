@@ -1,0 +1,25 @@
+<span class="status-chip status-chip--@StatusClass" aria-label="Status: @StatusText">@StatusText</span>
+
+@code {
+    [Parameter, EditorRequired] public TimesheetStatus Status { get; set; }
+
+    private string StatusText => Status switch
+    {
+        TimesheetStatus.Draft             => "Draft",
+        TimesheetStatus.Submitted         => "Submitted",
+        TimesheetStatus.ApprovedByLead    => "Approved by team lead",
+        TimesheetStatus.FinancialApproved => "Pending lock",
+        TimesheetStatus.Locked            => "Locked",
+        _                                 => Status.ToString()
+    };
+
+    private string StatusClass => Status switch
+    {
+        TimesheetStatus.Draft             => "draft",
+        TimesheetStatus.Submitted         => "submitted",
+        TimesheetStatus.ApprovedByLead    => "approved-lead",
+        TimesheetStatus.FinancialApproved => "financial-approved",
+        TimesheetStatus.Locked            => "locked",
+        _                                 => "draft"
+    };
+}

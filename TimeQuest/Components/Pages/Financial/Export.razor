@@ -1,0 +1,187 @@
+@page "/financial/export"
+@attribute [Authorize(Roles = "FinancialAdmin")]
+@rendermode InteractiveServer
+@inject ExportService ExportSvc
+@inject ILogger<Export> Logger
+@implements IDisposable
+
+<PageTitle>Export Timesheets</PageTitle>
+
+<div class="page-header">
+    <h1>Export locked timesheets</h1>
+</div>
+
+<EditForm Model="@filterModel" OnValidSubmit="LoadPreview" aria-label="Export filters">
+    <DataAnnotationsValidator />
+    <div class="form-group">
+        <label for="export-from">Date from <span aria-hidden="true">*</span></label>
+        <InputDate id="export-from" @bind-Value="filterModel.From" aria-required="true" />
+        <ValidationMessage For="@(() => filterModel.From)" />
+    </div>
+    <div class="form-group">
+        <label for="export-to">Date to <span aria-hidden="true">*</span></label>
+        <InputDate id="export-to" @bind-Value="filterModel.To" aria-required="true" />
+        <ValidationMessage For="@(() => filterModel.To)" />
+    </div>
+    @if (validationError is not null)
+    {
+        <p style="color:var(--color-danger);" role="alert">@validationError</p>
+    }
+    <button type="submit" class="btn btn-secondary" disabled="@loading">Preview</button>
+</EditForm>
+
+@if (loading)
+{
+    <LoadingSkeleton RowCount="5" />
+}
+else if (error is not null)
+{
+    <ErrorBanner Message="@error" OnRetry="LoadPreview" />
+}
+else if (rows is not null)
+{
+    @if (rows.Count == 0)
+    {
+        <EmptyState Title="No locked entries match these filters"
+                    Message="Try adjusting your filters" />
+    }
+    else
+    {
+        <section style="margin-top:var(--space-6);" aria-label="Export preview">
+            <h2>Preview (first @Math.Min(rows.Count, 5) of @rows.Count rows)</h2>
+            <table class="entries-table" aria-label="Export preview">
+                <thead>
+                    <tr>
+                        <th scope="col">Date</th>
+                        <th scope="col">Name</th>
+                        <th scope="col">Project</th>
+                        <th scope="col">Hours</th>
+                        <th scope="col">Billing type</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in rows.Take(5))
+                    {
+                        <tr>
+                            <td>@row.Date.ToString("dd/MM/yyyy")</td>
+                            <td>@row.UserName</td>
+                            <td>@row.ProjectName</td>
+                            <td>@row.Hours</td>
+                            <td>@row.BillingType</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </section>
+
+        <div style="margin-top:var(--space-6);">
+            <button type="button" class="btn btn-primary"
+                    @onclick="DownloadCsv"
+                    disabled="@downloading"
+                    aria-label="Download CSV export of @rows.Count rows">
+                @(downloading ? "Preparing&#8230;" : "Download CSV")
+            </button>
+            @if (downloadError is not null)
+            {
+                <ErrorBanner Message="@downloadError" />
+            }
+        </div>
+    }
+}
+
+@code {
+    private class ExportFilterModel
+    {
+        [System.ComponentModel.DataAnnotations.Required]
+        public DateTime From { get; set; } = new DateTime(DateTime.Today.Year, DateTime.Today.Month, 1);
+
+        [System.ComponentModel.DataAnnotations.Required]
+        public DateTime To { get; set; } = DateTime.Today;
+    }
+
+    private readonly ExportFilterModel filterModel = new();
+    private List<ExportRowDto>? rows;
+    private bool loading;
+    private bool downloading;
+    private string? error;
+    private string? downloadError;
+    private string? validationError;
+    private CancellationTokenSource? cts;
+
+    private async Task LoadPreview()
+    {
+        validationError = null;
+        error = null;
+
+        var from = DateOnly.FromDateTime(filterModel.From);
+        var to   = DateOnly.FromDateTime(filterModel.To);
+
+        if (from > to)
+        {
+            validationError = "From date must be on or before To date.";
+            return;
+        }
+
+        cts?.Cancel();
+        cts = new CancellationTokenSource();
+        loading = true;
+        rows = null;
+
+        try
+        {
+            rows = await ExportSvc.ExportLockedEntriesAsync(from, to, null, cts.Token);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to load export preview");
+            error = "We couldn't generate the export. Try again.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task DownloadCsv()
+    {
+        if (rows is null) return;
+        downloadError = null;
+        downloading = true;
+        try
+        {
+            var csv = BuildCsv(rows);
+            // TODO: wire JS interop to trigger file download
+            _ = csv;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to build CSV");
+            downloadError = "We couldn't generate the export. Try again.";
+        }
+        finally
+        {
+            downloading = false;
+        }
+        await Task.CompletedTask;
+    }
+
+    private static string BuildCsv(IEnumerable<ExportRowDto> data)
+    {
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine("Date,Name,Project,BillingType,Hours,Notes,TicketRef,WeekStart");
+        foreach (var r in data)
+        {
+            sb.AppendLine(
+                $"{r.Date:yyyy-MM-dd},{Escape(r.UserName)},{Escape(r.ProjectName)},{r.BillingType}," +
+                $"{r.Hours},{Escape(r.Notes)},{Escape(r.TicketRef ?? string.Empty)},{r.WeekStart:yyyy-MM-dd}");
+        }
+        return sb.ToString();
+    }
+
+    private static string Escape(string value) =>
+        value.Contains(',') || value.Contains('"') || value.Contains('\n')
+            ? $"\"{value.Replace("\"", "\"\"")}\""
+            : value;
+
+    public void Dispose() => cts?.Cancel();
+}

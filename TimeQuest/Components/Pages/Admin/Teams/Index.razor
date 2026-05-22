@@ -1,0 +1,88 @@
+@page "/admin/teams"
+@attribute [Authorize(Roles = "Administrator")]
+@rendermode InteractiveServer
+@inject AdminService AdminSvc
+@inject ILogger<Index> Logger
+@implements IDisposable
+
+<PageTitle>Teams</PageTitle>
+
+<div class="page-header">
+    <h1>Teams</h1>
+    <a href="/admin/teams/new" class="btn btn-primary">+ Create team</a>
+</div>
+
+@if (loading)
+{
+    <LoadingSkeleton RowCount="3" />
+}
+else if (error is not null)
+{
+    <ErrorBanner Message="@error" OnRetry="LoadAsync" />
+}
+else if (teams.Count == 0)
+{
+    <EmptyState Title="No teams yet"
+                Message="Create your first team to assign members"
+                CtaLabel="+ Create team"
+                CtaHref="/admin/teams/new" />
+}
+else
+{
+    <table class="approvals-table" aria-label="Teams">
+        <thead>
+            <tr>
+                <th scope="col">Name</th>
+                <th scope="col">Team Lead</th>
+                <th scope="col">Description</th>
+                <th scope="col">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var team in teams)
+            {
+                <tr>
+                    <td>@team.Name</td>
+                    <td>@(team.TeamLeadName ?? "(none)")</td>
+                    <td>@(team.Description ?? string.Empty)</td>
+                    <td>
+                        <a href="/admin/teams/@team.Id" class="btn btn-sm btn-secondary"
+                           aria-label="Edit team @team.Name">Edit</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<TeamDto> teams = new();
+    private bool loading = true;
+    private string? error;
+    private CancellationTokenSource? cts;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        cts?.Cancel();
+        cts = new CancellationTokenSource();
+        loading = true;
+        error = null;
+        try
+        {
+            teams = await AdminSvc.GetTeamsAsync(cts.Token);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to load teams");
+            error = "We couldn't load teams. Try again.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    public void Dispose() => cts?.Cancel();
+}

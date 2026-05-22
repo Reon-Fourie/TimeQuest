@@ -1,0 +1,82 @@
+@page "/approvals"
+@attribute [Authorize(Roles = "TeamLead")]
+@rendermode InteractiveServer
+@inject ApprovalService ApprovalSvc
+@inject ILogger<Index> Logger
+@implements IDisposable
+
+<PageTitle>Approvals</PageTitle>
+
+<div class="page-header">
+    <h1>Pending approvals</h1>
+</div>
+
+@if (loading)
+{
+    <LoadingSkeleton RowCount="5" />
+}
+else if (error is not null)
+{
+    <ErrorBanner Message="@error" OnRetry="LoadAsync" />
+}
+else if (queue.Count == 0)
+{
+    <EmptyState Title="All caught up"
+                Message="No timesheets waiting for your approval" />
+}
+else
+{
+    <table class="approvals-table" aria-label="Timesheets awaiting approval">
+        <thead>
+            <tr>
+                <th scope="col">Team Member</th>
+                <th scope="col">Week</th>
+                <th scope="col">Total Hours</th>
+                <th scope="col">Flagged</th>
+                <th scope="col">Status</th>
+                <th scope="col">Actions</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in queue)
+            {
+                <ApprovalQueueRow Item="@item" DetailHref="@($"/approvals/{item.TimesheetId}")" />
+            }
+        </tbody>
+    </table>
+}
+
+@code {
+    private List<ApprovalQueueItemDto> queue = new();
+    private bool loading = true;
+    private string? error;
+    private CancellationTokenSource? cts;
+
+    protected override async Task OnInitializedAsync() => await LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        cts?.Cancel();
+        cts = new CancellationTokenSource();
+        loading = true;
+        error = null;
+        try
+        {
+            queue = await ApprovalSvc.GetLeadQueueAsync(GetCurrentUserId(), cts.Token);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to load approval queue");
+            error = "We couldn't load your queue. Try again.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    // TODO: resolve from ClaimsPrincipal
+    private int GetCurrentUserId() => 0;
+
+    public void Dispose() => cts?.Cancel();
+}

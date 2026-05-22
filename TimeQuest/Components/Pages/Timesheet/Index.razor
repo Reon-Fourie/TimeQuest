@@ -1,0 +1,262 @@
+@page "/timesheet"
+@page "/timesheet/{WeekStart}"
+@attribute [Authorize]
+@rendermode InteractiveServer
+@inject WeeklyTimesheetService TimesheetService
+@inject TimeEntryService EntryService
+@inject NavigationManager Nav
+@inject ILogger<Index> Logger
+@implements IDisposable
+
+<PageTitle>My Timesheet</PageTitle>
+
+@if (loading)
+{
+    <LoadingSkeleton RowCount="7" />
+}
+else if (error is not null)
+{
+    <ErrorBanner Message="@error" OnRetry="LoadAsync" />
+}
+else if (timesheet is not null)
+{
+    @if (timesheet.Status == TimesheetStatus.Draft && timesheet.LastRejectionComment is not null)
+    {
+        <div class="rejection-banner" role="alert" aria-live="assertive">
+            <strong>Your timesheet was returned for correction</strong>
+            <p>&ldquo;@timesheet.LastRejectionComment&rdquo;</p>
+            @if (timesheet.LastRejectedByName is not null)
+            {
+                <p class="rejection-meta">
+                    Returned by @timesheet.LastRejectedByName
+                    @if (timesheet.LastRejectedAt.HasValue)
+                    {
+                        <span> on @timesheet.LastRejectedAt.Value.ToString("dd/MM/yyyy HH:mm")</span>
+                    }
+                </p>
+            }
+        </div>
+    }
+
+    <div class="timesheet-header">
+        <h1>Week of @timesheet.WeekStart.ToString("dd/MM/yyyy")</h1>
+        <StatusChip Status="@timesheet.Status" />
+    </div>
+
+    <!-- Week navigation -->
+    <div class="week-nav" role="navigation" aria-label="Week navigation">
+        <a href="/timesheet/@prevWeek.ToString("yyyy-MM-dd")" class="btn btn-secondary"
+           aria-label="Previous week">&#8592; Previous week</a>
+        <a href="/timesheet/@nextWeek.ToString("yyyy-MM-dd")" class="btn btn-secondary"
+           aria-label="Next week">Next week &#8594;</a>
+    </div>
+
+    <!-- Entries table -->
+    @if (timesheet.Entries.Count == 0)
+    {
+        <EmptyState Title="No entries yet"
+                    Message="Log your first hour to get started" />
+    }
+    else
+    {
+        <table class="entries-table" aria-label="Time entries">
+            <thead>
+                <tr>
+                    <th scope="col">Date</th>
+                    <th scope="col">Project</th>
+                    <th scope="col">Hours</th>
+                    <th scope="col">Notes</th>
+                    <th scope="col">Ticket</th>
+                    <th scope="col">Actions</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var entry in timesheet.Entries)
+                {
+                    <tr class="@(entry.FlaggedForReview ? "entry-row--flagged" : "")">
+                        <td>@entry.Date.ToString("dd/MM/yyyy")</td>
+                        <td>@entry.ProjectName</td>
+                        <td>
+                            @entry.Hours
+                            @if (entry.FlaggedForReview)
+                            {
+                                <span title="Review required" aria-label="Review required" style="color:var(--color-status-flagged);">(!)</span>
+                            }
+                        </td>
+                        <td>@entry.Notes</td>
+                        <td>@(entry.TicketRef ?? "&#8212;")</td>
+                        <td>
+                            @if (!entry.IsLocked)
+                            {
+                                <button type="button" class="btn btn-sm btn-secondary"
+                                        @onclick="() => OpenEdit(entry)"
+                                        aria-label="Edit entry for @entry.Date.ToString("dd/MM/yyyy")">
+                                    Edit
+                                </button>
+                                <button type="button" class="btn btn-sm btn-danger"
+                                        @onclick="() => DeleteEntry(entry.Id)"
+                                        aria-label="Delete entry for @entry.Date.ToString("dd/MM/yyyy")">
+                                    Delete
+                                </button>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    }
+
+    <!-- Day flags (leave / public holiday) -->
+    @if (timesheet.DayFlags.Count > 0)
+    {
+        <div class="day-flags" aria-label="Day flags">
+            @foreach (var flag in timesheet.DayFlags)
+            {
+                <span class="day-flag">@flag.Date.ToString("dd/MM") &#8212; @flag.FlagType</span>
+            }
+        </div>
+    }
+
+    <!-- Submit button -->
+    @if (timesheet.Status == TimesheetStatus.Draft)
+    {
+        <div class="timesheet-actions">
+            @if (submissionValidation is not null && submissionValidation.MissingDays.Count > 0)
+            {
+                <div class="warning-banner" role="alert">
+                    <p>Missing entries for: @string.Join(", ", submissionValidation.MissingDays.Select(d => d.ToString("dd/MM")))</p>
+                </div>
+            }
+            <button type="button" class="btn btn-primary"
+                    @onclick="SubmitTimesheet"
+                    disabled="@(submitting || timesheet.Entries.Count == 0)"
+                    aria-label="Submit timesheet for week of @timesheet.WeekStart.ToString("dd/MM/yyyy") for approval">
+                @(submitting ? "Submitting&#8230;" : "Submit for approval")
+            </button>
+        </div>
+    }
+
+    @if (successMessage is not null)
+    {
+        <p class="success-message" role="status" aria-live="polite">@successMessage</p>
+    }
+}
+
+@code {
+    [Parameter] public string? WeekStart { get; set; }
+
+    private WeeklyTimesheetDto? timesheet;
+    private SubmissionValidationResult? submissionValidation;
+    private bool loading = true;
+    private string? error;
+    private bool submitting;
+    private string? successMessage;
+    private CancellationTokenSource? cts;
+    private DateOnly currentWeek;
+    private DateOnly prevWeek;
+    private DateOnly nextWeek;
+
+    protected override async Task OnInitializedAsync()
+    {
+        currentWeek = WeekStart is not null
+            ? DateOnly.Parse(WeekStart)
+            : GetCurrentWeekStart();
+        prevWeek = currentWeek.AddDays(-7);
+        nextWeek = currentWeek.AddDays(7);
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        cts?.Cancel();
+        cts = new CancellationTokenSource();
+        loading = true;
+        error = null;
+        try
+        {
+            timesheet = await TimesheetService.GetOrCreateForWeekAsync(
+                GetCurrentUserId(), currentWeek, cts.Token);
+            submissionValidation = await TimesheetService.ValidateForSubmissionAsync(
+                GetCurrentUserId(), timesheet.Id, cts.Token);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to load timesheet for week {Week}", currentWeek);
+            error = "We couldn't load your entries. Check your connection and try again.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task SubmitTimesheet()
+    {
+        submitting = true;
+        successMessage = null;
+        error = null;
+        try
+        {
+            var result = await TimesheetService.SubmitAsync(
+                GetCurrentUserId(), timesheet!.Id, cts?.Token ?? default);
+            if (result.IsSuccess)
+            {
+                successMessage = $"Timesheet for week of {currentWeek.ToString("dd/MM/yyyy")} submitted for approval.";
+            }
+            else
+            {
+                error = result.Error;
+            }
+            await LoadAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to submit timesheet {TimesheetId}", timesheet?.Id);
+            error = "We couldn't submit your timesheet. Try again.";
+        }
+        finally
+        {
+            submitting = false;
+        }
+    }
+
+    private void OpenEdit(TimeEntryDto entry)
+    {
+        // TODO: open TimeEntryFormModal pre-filled with entry — modal wiring phase 2
+    }
+
+    private async Task DeleteEntry(int entryId)
+    {
+        error = null;
+        try
+        {
+            var result = await EntryService.DeleteEntryAsync(
+                GetCurrentUserId(), entryId, cts?.Token ?? default);
+            if (result.IsSuccess)
+            {
+                await LoadAsync();
+            }
+            else
+            {
+                error = result.Error;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to delete entry {EntryId}", entryId);
+            error = "We couldn't delete the entry. Try again.";
+        }
+    }
+
+    private static DateOnly GetCurrentWeekStart()
+    {
+        var today = DateOnly.FromDateTime(DateTime.Today);
+        var daysFromMonday = ((int)today.DayOfWeek - (int)DayOfWeek.Monday + 7) % 7;
+        return today.AddDays(-daysFromMonday);
+    }
+
+    // TODO: resolve from ClaimsPrincipal via AuthenticationStateProvider in full wiring
+    private int GetCurrentUserId() => 0;
+
+    public void Dispose() => cts?.Cancel();
+}

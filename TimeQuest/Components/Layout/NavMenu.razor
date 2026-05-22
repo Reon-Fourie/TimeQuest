@@ -1,29 +1,107 @@
-﻿<div class="top-row ps-3 navbar navbar-dark">
-    <div class="container-fluid">
-        <a class="navbar-brand" href="">TimeQuest</a>
+@inject NavigationManager Nav
+
+<nav class="nav-rail" aria-label="Main navigation">
+    <div class="nav-brand">
+        <span class="nav-logo">TimeQuest</span>
     </div>
-</div>
 
-<input type="checkbox" title="Navigation menu" class="navbar-toggler"/>
+    <ul class="nav-list" role="list">
 
-<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
-    <nav class="nav flex-column">
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
-                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
-            </NavLink>
-        </div>
+        <!-- All authenticated users — My Work -->
+        <AuthorizeView>
+            <Authorized>
+                <li>
+                    <NavLink href="/timesheet" Match="NavLinkMatch.Prefix"
+                             aria-label="My Timesheet">
+                        My Timesheet
+                    </NavLink>
+                </li>
+            </Authorized>
+        </AuthorizeView>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="counter">
-                <span class="bi bi-plus-square-fill-nav-menu" aria-hidden="true"></span> Counter
-            </NavLink>
-        </div>
+        <!-- Team Lead — Approvals -->
+        <AuthorizeView Roles="TeamLead">
+            <Authorized>
+                <li>
+                    <NavLink href="/approvals" Match="NavLinkMatch.Prefix"
+                             aria-label="Approvals">
+                        Approvals
+                    </NavLink>
+                </li>
+            </Authorized>
+        </AuthorizeView>
 
-        <div class="nav-item px-3">
-            <NavLink class="nav-link" href="weather">
-                <span class="bi bi-list-nested-nav-menu" aria-hidden="true"></span> Weather
-            </NavLink>
-        </div>
-    </nav>
-</div>
+        <!-- Financial Admin — Finance -->
+        <AuthorizeView Roles="FinancialAdmin">
+            <Authorized>
+                <li>
+                    <NavLink href="/financial/queue" Match="NavLinkMatch.Prefix"
+                             aria-label="Review Queue">
+                        Review Queue
+                    </NavLink>
+                </li>
+                <li>
+                    <NavLink href="/financial/lock" Match="NavLinkMatch.Prefix"
+                             aria-label="Lock Timesheets">
+                        Lock Timesheets
+                    </NavLink>
+                </li>
+                <li>
+                    <NavLink href="/financial/reports" Match="NavLinkMatch.Prefix"
+                             aria-label="Reports">
+                        Reports
+                    </NavLink>
+                </li>
+                <li>
+                    <NavLink href="/financial/export" Match="NavLinkMatch.Prefix"
+                             aria-label="Export">
+                        Export
+                    </NavLink>
+                </li>
+                <li>
+                    <NavLink href="/audit" Match="NavLinkMatch.Prefix"
+                             aria-label="Audit Log">
+                        Audit Log
+                    </NavLink>
+                </li>
+            </Authorized>
+        </AuthorizeView>
+
+        <!-- Administrator — Administration -->
+        <AuthorizeView Roles="Administrator">
+            <Authorized>
+                <li>
+                    <NavLink href="/admin/teams" Match="NavLinkMatch.Prefix"
+                             aria-label="Teams">
+                        Teams
+                    </NavLink>
+                </li>
+                <li>
+                    <NavLink href="/admin/projects" Match="NavLinkMatch.Prefix"
+                             aria-label="Projects">
+                        Projects
+                    </NavLink>
+                </li>
+            </Authorized>
+        </AuthorizeView>
+
+        <!-- System Admin — System -->
+        <AuthorizeView Roles="SystemAdmin">
+            <Authorized>
+                <li>
+                    <NavLink href="/sysadmin/integrations" Match="NavLinkMatch.Prefix"
+                             aria-label="Integrations">
+                        Integrations
+                    </NavLink>
+                </li>
+                <li>
+                    <NavLink href="/audit" Match="NavLinkMatch.Prefix"
+                             aria-label="Audit Log">
+                        Audit Log
+                    </NavLink>
+                </li>
+            </Authorized>
+        </AuthorizeView>
+
+    </ul>
+</nav>

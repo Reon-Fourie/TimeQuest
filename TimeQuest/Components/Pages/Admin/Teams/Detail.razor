@@ -1,0 +1,247 @@
+@page "/admin/teams/{TeamId:int}"
+@attribute [Authorize(Roles = "Administrator")]
+@rendermode InteractiveServer
+@inject AdminService AdminSvc
+@inject NavigationManager Nav
+@inject ILogger<Detail> Logger
+@implements IDisposable
+
+<PageTitle>Edit Team</PageTitle>
+
+@if (loading)
+{
+    <LoadingSkeleton RowCount="8" />
+}
+else if (error is not null)
+{
+    <ErrorBanner Message="@error" OnRetry="LoadDetail" />
+}
+else if (team is not null)
+{
+    <div class="page-header">
+        <a href="/admin/teams" class="btn btn-secondary">&#8592; Back</a>
+    </div>
+
+    <h1>Edit team: @team.Name</h1>
+
+    <EditForm Model="@editModel" OnValidSubmit="SaveChanges" aria-label="Edit team">
+        <DataAnnotationsValidator />
+        <div class="form-group">
+            <label for="team-name">Team name <span aria-hidden="true">*</span></label>
+            <InputText id="team-name"
+                       @bind-Value="editModel.Name"
+                       aria-required="true"
+                       maxlength="100" />
+            <ValidationMessage For="@(() => editModel.Name)" />
+        </div>
+        <div class="form-group">
+            <label for="team-desc">Description</label>
+            <InputTextArea id="team-desc" @bind-Value="editModel.Description" rows="3" maxlength="500" />
+            <ValidationMessage For="@(() => editModel.Description)" />
+        </div>
+        @if (saveError is not null)
+        {
+            <ErrorBanner Message="@saveError" />
+        }
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary" disabled="@saving">
+                @(saving ? "Saving&#8230;" : "Save changes")
+            </button>
+            <a href="/admin/teams" class="btn btn-secondary">Cancel</a>
+            <button type="button" class="btn btn-danger"
+                    @onclick="RequestDelete"
+                    style="margin-left:auto;">
+                Delete team
+            </button>
+        </div>
+    </EditForm>
+
+    <!-- Members section -->
+    <section style="margin-top:var(--space-8);" aria-label="Team members">
+        <div class="page-header">
+            <h2>Members (@team.Members.Count)</h2>
+        </div>
+
+        @if (team.Members.Count == 0)
+        {
+            <EmptyState Title="No members yet"
+                        Message="Click &quot;+ Add members&quot; to assign people to this team" />
+        }
+        else
+        {
+            <table class="approvals-table" aria-label="Team members">
+                <thead>
+                    <tr>
+                        <th scope="col">Name</th>
+                        <th scope="col">Role</th>
+                        <th scope="col">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var m in team.Members)
+                    {
+                        <tr>
+                            <td>@m.DisplayName</td>
+                            <td>@m.Role</td>
+                            <td>
+                                @if (m.Role != UserTeamRole.Lead)
+                                {
+                                    <button type="button" class="btn btn-sm btn-danger"
+                                            @onclick="() => RemoveMember(m.UserId)"
+                                            aria-label="Remove @m.DisplayName from team">
+                                        Remove
+                                    </button>
+                                }
+                                else
+                                {
+                                    <span style="color:var(--color-text-secondary);font-size:var(--font-size-sm);">Lead &#8212; cannot remove</span>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </section>
+}
+
+@if (pendingDelete)
+{
+    <ConfirmDialog Title="@($"Delete team: {team?.Name}?")"
+                  Message="Members will not be deleted. This action cannot be undone."
+                  ConfirmLabel="Delete team"
+                  OnConfirmed="ExecuteDelete"
+                  OnCancelled="CancelDelete" />
+}
+
+@code {
+    [Parameter] public int TeamId { get; set; }
+
+    private class TeamEditModel
+    {
+        [System.ComponentModel.DataAnnotations.Required(ErrorMessage = "Team name is required.")]
+        [System.ComponentModel.DataAnnotations.MaxLength(100)]
+        public string Name { get; set; } = string.Empty;
+
+        [System.ComponentModel.DataAnnotations.MaxLength(500)]
+        public string? Description { get; set; }
+    }
+
+    private TeamDetailDto? team;
+    private readonly TeamEditModel editModel = new();
+    private bool loading = true;
+    private string? error;
+    private string? saveError;
+    private bool saving;
+    private bool pendingDelete;
+    private CancellationTokenSource? cts;
+
+    protected override async Task OnInitializedAsync()
+    {
+        cts = new CancellationTokenSource();
+        await LoadDetail();
+    }
+
+    private async Task LoadDetail()
+    {
+        loading = true;
+        error = null;
+        try
+        {
+            var result = await AdminSvc.GetTeamDetailAsync(TeamId, cts?.Token ?? default);
+            if (result.IsSuccess)
+            {
+                team = result.Value;
+                editModel.Name = team!.Name;
+                editModel.Description = team.Description;
+            }
+            else
+            {
+                error = result.Error;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to load team {TeamId}", TeamId);
+            error = "We couldn't load this team. Try again.";
+        }
+        finally
+        {
+            loading = false;
+        }
+    }
+
+    private async Task SaveChanges()
+    {
+        saving = true;
+        saveError = null;
+        try
+        {
+            var result = await AdminSvc.UpdateTeamAsync(TeamId, new UpdateTeamRequest
+            {
+                Name = editModel.Name,
+                Description = editModel.Description,
+                TeamLeadId = team?.TeamLeadId
+            }, cts?.Token ?? default);
+
+            if (result.IsSuccess)
+            {
+                await LoadDetail();
+            }
+            else
+            {
+                saveError = result.Error;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to save team {TeamId}", TeamId);
+            saveError = "We couldn't save changes. Try again.";
+        }
+        finally
+        {
+            saving = false;
+        }
+    }
+
+    private async Task RemoveMember(int userId)
+    {
+        saveError = null;
+        try
+        {
+            var result = await AdminSvc.RemoveTeamMemberAsync(TeamId, userId, cts?.Token ?? default);
+            if (result.IsSuccess)
+                await LoadDetail();
+            else
+                saveError = result.Error;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to remove member {UserId} from team {TeamId}", userId, TeamId);
+            saveError = "We couldn't remove the member. Try again.";
+        }
+    }
+
+    private void RequestDelete() => pendingDelete = true;
+    private void CancelDelete() => pendingDelete = false;
+
+    private async Task ExecuteDelete()
+    {
+        pendingDelete = false;
+        try
+        {
+            var result = await AdminSvc.DeleteTeamAsync(TeamId, cts?.Token ?? default);
+            if (result.IsSuccess)
+                Nav.NavigateTo("/admin/teams");
+            else
+                saveError = result.Error;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to delete team {TeamId}", TeamId);
+            saveError = "We couldn't delete the team. Try again.";
+        }
+    }
+
+    public void Dispose() => cts?.Cancel();
+}

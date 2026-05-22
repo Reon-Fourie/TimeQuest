@@ -1,0 +1,18 @@
+<div class="empty-state" role="status">
+    <p class="empty-state-title">@Title</p>
+    @if (Message is not null)
+    {
+        <p class="empty-state-message">@Message</p>
+    }
+    @if (CtaLabel is not null && CtaHref is not null)
+    {
+        <a href="@CtaHref" class="btn btn-primary">@CtaLabel</a>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Title { get; set; } = string.Empty;
+    [Parameter] public string? Message { get; set; }
+    [Parameter] public string? CtaLabel { get; set; }
+    [Parameter] public string? CtaHref { get; set; }
+}

@@ -1,0 +1,12 @@
+<div class="error-banner" role="alert" aria-live="assertive">
+    <span class="error-banner-message">@Message</span>
+    @if (OnRetry.HasDelegate)
+    {
+        <button type="button" class="btn btn-sm btn-secondary" @onclick="OnRetry">Try again</button>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired] public string Message { get; set; } = string.Empty;
+    [Parameter] public EventCallback OnRetry { get; set; }
+}

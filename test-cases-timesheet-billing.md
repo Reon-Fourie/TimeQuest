@@ -1538,18 +1538,595 @@ The following cases were added after reviewing the TimeTrack wireframes (login, 
 
 ---
 
-## 15. Out of scope for this suite
-- Integrations (ST-015) — DevOps/JIRA/Linear ticket validation: requires live integration; covered as a separate harness once endpoints exist.
-- Mobile-specific layouts: the Figma file title mentions "Web + Mobile" wireframes; mobile-only test cases deferred until mobile wireframes are reviewed.
-- Future ST-018 resource planning: explicitly out of scope per §2.
-- Password reset flow (TC-064 covers nav only): full flow tested separately once reset screens are available.
+## 15. Mobile / Responsive Behaviour
+
+**Scope:** Mobile/tablet behaviour of all flows already covered in §1–§14. These cases test layout reflow, touch interaction, mobile browser quirks, and accessibility on touch devices — they do NOT re-verify business logic (that's done by the desktop cases).
+
+**Wireframe basis:** Cases validated against the Figma mobile wireframes M1–M6 (390×844) for Login, Dashboard, Log Time Entry, My Timesheets, Approvals (Team Lead), Admin Panel. Two mobile-specific design choices noted upfront:
+- **Navigation = 5-tab bottom bar** (Home / Log / Sheets / Approvals / More — replaced with "Admin" for admin-scope users), NOT a hamburger drawer.
+- **Approvals = swipe gestures** (right approves, left rejects), NOT bulk-select checkboxes.
+
+**Wireframes NOT supplied (cases inferred):** Financial Admin mobile view (TC-131), Reject-reason capture sheet (referenced in TC-130), Week detail drill-in (TC-145), Add-User form (TC-152). Flag these as PO follow-ups.
+
+**Possible design conflict #6:** Mobile Log Time form includes a "Task Type" dropdown that does not appear in the desktop Log Time modal. Raise with UX before sign-off — should be added alongside the 5 design conflicts already flagged at the top of this file.
+
+**Shared mobile preconditions (assumed for all cases in this section):**
+- Devices under test: iPhone 14 (390×844) iOS Safari 17+, Pixel 7 (412×915) Android Chrome current, iPad portrait (768×1024) iOS Safari, small Android (360×640) Chrome.
+- Breakpoints assumed: ≤767px = mobile, 768–1023px = tablet, ≥1024px = desktop.
+- Touch input only (no mouse hover events).
+- All seeded users from the shared preconditions block at the top of this file are available.
 
 ---
 
-**Total cases:** 116 (57 AC-based + 59 UI/wireframe-derived)
+### TC-117 — 5-tab bottom navigation bar on mobile
+**AC:** UX (Figma M2 / M4 / M5 / M6 — bottom-tab pattern)
+**Preconditions:** Logged in as `tm1@test.local` on iPhone 14 Safari.
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | Load Dashboard | Bottom tab bar visible with 5 tabs: Home / Log / Sheets / Approvals / More. "Home" tab styled active (blue label/indicator). |
+| 2 | Tap "Sheets" tab | Navigates to My Timesheets; "Sheets" becomes active; "Home" indicator clears |
+| 3 | Tap "Log" tab | Opens Log Time Entry (full-screen) |
+| 4 | Sign out, sign in as `admin1@test.local`, reload | Fifth tab label = "Admin" (replaces "More" for admin-scope users) |
+| 5 | Sign in as `tm1@test.local` (Team Member) | Fifth tab = "More" again |
+| 6 | Verify "Approvals" tab on Team Member account | Per RBAC design conflict #2 (TC-076), tab should be hidden OR tap → 403. Wireframe shows it visible on M2 (Team Member dashboard) — confirm desired behaviour with UX. |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+
+---
+
+### TC-118 — Per-screen mobile header layout
+**AC:** UX (Figma M1–M6)
+**Preconditions:** Set of seeded users across roles; iPhone 14.
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | Signed out, visit `/signin` (M1) | Dark hero with TT mark + "TimeTrack" + "Billing Workflow System" branding fills upper half; no top nav |
+| 2 | Signed in, Dashboard (M2) | Header: "Hi, {firstName} 👋" / "{day}, {date}" subline / initials avatar top-right |
+| 3 | Log Time Entry (M3) | Header: "Log Time Entry" title + "Save" link top-right |
+| 4 | My Timesheets (M4) | Header: "My Timesheets" + "+ New" button top-right |
+| 5 | Approvals (M5) | Header: "Approvals" + red circular pending-count badge |
+| 6 | Admin Panel (M6) | Header: "Admin Panel" + "+ Add" button top-right |
+| 7 | Confirm no hamburger anywhere | No hamburger icon on any screen; bottom-tab bar is the only persistent navigation |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+
+---
+
+### TC-119 — Touch targets meet WCAG 2.5.5 minimum (44×44 px)
+**AC:** Accessibility — WCAG 2.1 AA target size
+**Preconditions:** Any mobile device.
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | Inspect or measure primary CTAs: Save, Submit Week, Approve, Reject, Final Approve + Lock, Export, Sign In | Each ≥ 44×44 CSS px including padding |
+| 2 | Inspect row-level icon actions (Edit, Delete, Resubmit) | Each ≥ 44×44 px; spacing ≥ 8px between adjacent targets |
+| 3 | Inspect hamburger, user avatar, drawer items | Each ≥ 44×44 px |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+
+---
+
+### TC-120 — Sign-in form usable with mobile keyboard open
+**AC:** UX — auth on mobile
+**Preconditions:** Signed out; iPhone 14, Safari.
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | Load `/signin` | Email + Password + Sign In button all visible above the fold |
+| 2 | Tap Email field | Keyboard opens; Sign In button remains reachable (scrollable to or sticky), not hidden behind keyboard |
+| 3 | Fill credentials, tap Sign In | Sign in succeeds; redirect to dashboard |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+
+---
+
+### TC-121 — Password manager autofill works on iOS / Android
+**AC:** UX — auth on mobile
+**Preconditions:** Saved credentials for `tm1@test.local` in iOS Keychain (or Android autofill).
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | Open `/signin`, tap Email field | Autofill suggestion bar appears above keyboard |
+| 2 | Tap suggestion | Email AND password fields both fill |
+| 3 | Tap Sign In | Auth succeeds |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+**Notes:** Verifies `autocomplete="email"` and `autocomplete="current-password"` attributes are present.
+
+---
+
+### TC-122 — Log Time Entry opens as full-screen page
+**AC:** UX (Figma M3)
+**Preconditions:** Logged in as `tm1@test.local` on iPhone 14.
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | From Dashboard, tap any of: "+ Log Time" Quick Action, "+" FAB, "Log" bottom tab | Log Time Entry opens taking the full viewport — NOT a centered desktop modal with whitespace |
+| 2 | Inspect header | "Log Time Entry" title + "Save" link top-right; no X icon |
+| 3 | Inspect form layout | Date (left) + Hours with "h" suffix (right) on one row; Project full-width; Task Type full-width (optional, NEW vs desktop); Notes textarea (required); Ticket Reference (optional) |
+| 4 | Scroll to bottom of form | "Save Entry" primary button (full-width blue) above "Cancel" button (text/outlined) |
+| 5 | Tap Cancel | Returns to previous screen; no entry created |
+| 6 | Reopen, verify no horizontal scroll on any field at 390px viewport | All fields fit; placeholders not truncated |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+**Notes:** Two save affordances (header "Save" link + bottom "Save Entry" button) — TC-142 verifies parity.
+
+---
+
+### TC-123 — Hours field opens numeric keypad
+**AC:** UX — form input semantics
+**Preconditions:** Log Time modal open on iPhone 14.
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | Tap Hours field | Numeric keypad appears (with decimal point); NOT full QWERTY |
+| 2 | Tap Notes field | Full text keyboard appears |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+**Notes:** Verifies `inputmode="decimal"` (or `type="number"` with `step="0.25"`) on Hours.
+
+---
+
+### TC-124 — Date picker is native on iOS / Android
+**AC:** UX — touch input
+**Preconditions:** Log Time modal open.
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | Tap Date field on iOS Safari | Native iOS date wheel/calendar appears |
+| 2 | Pick a date, tap Done | Field populates; picker dismisses; no custom JS picker overlay covers the form |
+| 3 | Repeat on Android Chrome | Material-style native picker appears and behaves equivalently |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+
+---
+
+### TC-125 — iOS Safari does not auto-zoom on input focus
+**AC:** UX — iOS Safari quirk
+**Preconditions:** Any form (sign-in, Log Time) on iPhone Safari.
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | Tap into Email / Notes / Hours field | Viewport does NOT zoom in; page font/layout unchanged |
+| 2 | Inspect input CSS | `font-size` ≥ 16px on all interactive text inputs |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+
+---
+
+### TC-126 — My Timesheets renders as weekly-summary list on mobile
+**AC:** UX (Figma M4)
+**Preconditions:** Logged in as `tm1@test.local` with ≥5 historical weeks in mixed states (Submitted, Approved by Lead, Locked, Draft).
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | Navigate to My Timesheets on iPhone 14 | Vertical list of weekly rows. Each row: "{date range, e.g. 18–22 May 2026}" left + "{total hours, e.g. 32.5h}" + status badge + chevron `›`. NO desktop 7-column grid; NO horizontal scroll. |
+| 2 | Verify status badges | Submitted, Approved by Lead, Locked, Draft — all visible without truncation; contrast meets AA |
+| 3 | Verify ordering | Most recent week at top; descending by start date |
+| 4 | Verify "+ New" CTA top-right | Always visible (TC-146 covers behaviour) |
+| 5 | Tap a row | Drills into that week's detail view (TC-145) |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+
+---
+
+### TC-127 — Status badges and row actions readable on small screen
+**AC:** UX — mobile readability
+**Preconditions:** My Timesheets on 360×640 Android.
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | View list with Draft / Submitted / Approved / Locked / Flagged entries | All badge text legible (no truncation, contrast meets AA) |
+| 2 | Locate row-level actions (Edit, Delete, Resubmit) | Visible inline OR accessible via overflow `⋯` menu — tap overflow → menu opens above keyboard area |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+
+---
+
+### TC-128 — Export triggers file download on mobile
+**AC:** ST-014 — Export on mobile
+**Preconditions:** Logged in as `tm1@test.local`; at least one Locked timesheet.
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | On iPhone Safari, tap Export on a Locked row | iOS download/share sheet appears; file is offered as CSV or PDF |
+| 2 | Save to Files | File saved; opening shows correct content |
+| 3 | Repeat on Android Chrome | File downloads to Downloads/; notification appears |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+**Notes:** Re-confirm scope of Team Member Export per design conflict #3 (TC-088) before testing.
+
+---
+
+### TC-129 — Swipe right approves a timesheet
+**AC:** ST-007 / ST-008 (Figma M5)
+**Preconditions:** Logged in as `lead1@test.local`; ≥1 Submitted timesheet pending (e.g. Mark Peters · 38h · Week of 18–22 May).
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | Navigate to Approvals on iPhone 14 | Each pending row shows avatar / name / role · hours / week range / chevron. Tip text below list: "Swipe left to reject · right to approve" |
+| 2 | Touch-drag a row left-to-right past threshold (~50% width) | Green "Approve" background revealed; on release row animates out |
+| 3 | Verify toast | "Timesheet approved" (or equivalent) appears |
+| 4 | Verify header pending count badge decremented | "4" → "3" (or current −1) |
+| 5 | Verify DB / desktop view | Status = Approved by Lead; ApprovedBy = lead1; ApprovedAt set |
+| 6 | Repeat swipe right but release before threshold (~20%) | Row springs back; no action taken |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+
+---
+
+### TC-130 — Swipe left rejects a timesheet
+**AC:** ST-008 (Figma M5)
+**Preconditions:** Logged in as `lead1@test.local`; ≥1 Submitted timesheet.
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | Swipe a row right-to-left past threshold | Red "Reject" background revealed; on release, reject flow triggers |
+| 2 | Reject-reason capture | A modal/sheet prompts for reason. Enter reason, confirm. |
+| 3 | Verify row removal + toast | Row animates out; "Timesheet rejected" toast; pending badge decrements |
+| 4 | Verify DB / desktop | Status = Rejected; RejectionReason persisted |
+| 5 | Repeat swipe left, cancel reason dialog mid-flow | Row returns to queue; no state change |
+| 6 | Verify bulk-select is NOT present | No checkboxes on rows, no "select all" affordance — mobile design intentionally omits bulk actions (PO follow-up if needed) |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+**Notes:** Reject-reason capture screen not in supplied wireframes — PO follow-up. Without it, swipe-left cannot ship.
+
+---
+
+### TC-131 — Final Approve + Lock reachable on Financial Admin mobile view
+**AC:** ST-010 / ST-011 on mobile
+**Preconditions:** Logged in as `fa@test.local`; at least one Team-Lead-Approved timesheet awaiting final approval.
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | Navigate to Financial Admin page on iPhone 14 | Pending list visible (layout TBC — mobile wireframe not supplied) |
+| 2 | Tap a row to open detail | Detail view fits viewport; Final Approve + Lock CTA visible without scrolling past key data |
+| 3 | Tap Final Approve + Lock | Confirm modal fits viewport; tap Confirm → status moves to Locked |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+**Notes:** Financial Admin mobile wireframe NOT in supplied set — flagged as PO follow-up. Also depends on design conflict #1 (TC-096) resolution.
+
+---
+
+### TC-132 — Admin Panel reflows with Users / Projects / Teams tab strip
+**AC:** ST-012 / ST-013 (Figma M6)
+**Preconditions:** Logged in as `admin1@test.local` (scoped to P1 / Alpha Squad).
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | Tap "Admin" bottom tab on iPhone 14 | Admin Panel opens; header "Admin Panel" + "+ Add"; tab strip "Users | Projects | Teams" with Users active by default |
+| 2 | Tap "Projects" tab | Tab content switches; only in-scope projects listed (P1; NOT P2) |
+| 3 | Tap "Teams" tab | Only in-scope teams listed (Alpha Squad; NOT Beta Squad) |
+| 4 | Return to "Users" tab | Users content restored; previous scroll position retained |
+| 5 | Confirm scope banner persists across tabs | "ⓘ You see only your assigned scope." banner visible on every tab |
+| 6 | Confirm NO "desktop only" fallback notice | Admin Panel is a primary mobile surface, not a desktop-only feature |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+
+---
+
+### TC-133 — Orientation change preserves form state
+**AC:** UX — mobile robustness
+**Preconditions:** Log Time modal open; iPhone 14.
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | Fill Project=P1, Hours=4, Notes="rotate test" | Values populated |
+| 2 | Rotate device portrait → landscape | Layout reflows for landscape; entered values preserved |
+| 3 | Rotate back to portrait | Values still preserved; layout returns |
+| 4 | Tap Save | Entry saves correctly |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+
+---
+
+### TC-134 — Toasts position above sticky elements / keyboard
+**AC:** UX — feedback visibility
+**Preconditions:** Log Time modal open on iPhone 14.
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | Save a draft entry while keyboard is up | Success toast appears within visible viewport (not behind keyboard, not behind sticky footer) |
+| 2 | Toast auto-dismisses or is dismissible | After 4–5s, toast fades; or X dismisses it |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+
+---
+
+### TC-135 — Sticky primary CTA on long forms
+**AC:** UX — mobile forms
+**Preconditions:** Log Time modal open on iPhone 14 (full-screen sheet).
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | Open Notes field, type ≥3 lines | Save button remains anchored at bottom of viewport (above keyboard) OR is reachable by scrolling within the sheet without leaving the form |
+| 2 | Hours field validation error appears | Error message visible; Save remains usable |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+
+---
+
+### TC-136 — Slow 3G shows skeleton, not blank screen
+**AC:** UX — perceived performance on mobile networks
+**Preconditions:** Chrome DevTools network throttle = "Slow 3G", or real low-bandwidth device.
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | Hard reload `/dashboard` | Page chrome renders; skeleton placeholders shown for KPI tiles and timesheet preview |
+| 2 | Wait | Data populates within 10s; no blank white screen; no spinner-only state >2s |
+| 3 | Trigger Log Time save under throttle | Optimistic UI OR spinner on Save button with disabled state — no double-submit possible |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+
+---
+
+### TC-137 — VoiceOver / TalkBack reads form labels and button states
+**AC:** Accessibility — screen reader on mobile
+**Preconditions:** iPhone 14 with VoiceOver enabled (Settings → Accessibility → VoiceOver).
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | Swipe through Log Time modal | Each field announces: label ("Project"), role ("combobox"/"text field"), current value if set |
+| 2 | Required field announces "required" | Yes |
+| 3 | Save button announces label + state ("Save, button, disabled" when form invalid) | Yes |
+| 4 | Repeat with Android TalkBack | Equivalent behaviour |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+
+---
+
+### TC-138 — Pinch-zoom does not break layout
+**AC:** Accessibility — WCAG 1.4.4 Resize Text
+**Preconditions:** Any page on iPhone Safari.
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | Pinch-zoom in to ~200% | Content zooms; user can scroll to see content; NO `user-scalable=no` blocking zoom |
+| 2 | Pinch back out | Layout returns to default; no horizontal scroll introduced; no overlapping elements |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+
+---
+
+### TC-139 — Dashboard FAB opens Log Time Entry
+**AC:** UX (Figma M2)
+**Preconditions:** Logged in as `tm1@test.local` on iPhone 14.
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | Load Dashboard | Floating Action Button (blue circle, white "+") visible bottom-right, above the bottom tab bar |
+| 2 | Tap FAB | Log Time Entry opens (full-screen) |
+| 3 | Cancel out of Log Time | Returns to Dashboard; FAB visible again |
+| 4 | Scroll "Today's Entries" list down/up | FAB remains anchored (sticky) |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+
+---
+
+### TC-140 — Dashboard Quick Actions row navigates correctly
+**AC:** UX (Figma M2)
+**Preconditions:** Logged in as `tm1@test.local`.
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | On Dashboard, locate "Quick Actions" row of 3 buttons | "+ Log Time" (filled blue primary), "My Timesheets" (outlined), "Approvals" (outlined) — all visible in a single row |
+| 2 | Tap "+ Log Time" | Log Time Entry opens |
+| 3 | Cancel back, tap "My Timesheets" | Navigates to My Timesheets; "Sheets" bottom-nav tab becomes active |
+| 4 | Back, tap "Approvals" | Team Lead: navigates to Approvals queue. Team Member: hidden/disabled/403 per design conflict #2 (TC-076) resolution. |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+
+---
+
+### TC-141 — Dashboard "This Week" progress card accuracy
+**AC:** UX (Figma M2); ST-002
+**Preconditions:** Logged in as `tm1@test.local` with 32.5h logged this week against 40h expected; 7.5h logged today.
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | Load Dashboard | "This Week" card shows "32.5h / 40h" headline; progress bar ~81% filled; subline "81% complete · 7.5h today" |
+| 2 | Log 1.5h additional today | Headline updates to "34.0h / 40h"; today total updates to "9.0h today" |
+| 3 | Continue logging until 40h reached | Bar 100%; "100% complete" or "Complete" copy |
+| 4 | Log past 40h (overtime) | Bar capped at 100% OR overflow indicator; overtime flag surfaced for Team Lead approval (see TC-148) |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+
+---
+
+### TC-142 — Log Time dual save affordances behave identically
+**AC:** ST-001; UX (Figma M3)
+**Preconditions:** Logged in as `tm1@test.local`; Log Time Entry open.
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | Fill valid entry (Project=P1, Hours=8.0, Notes="x") | Form valid |
+| 2 | Tap header "Save" link | Entry persists; returns to Dashboard; Today's Entries reflects new row |
+| 3 | Reopen Log Time, fill another valid entry | — |
+| 4 | Tap bottom "Save Entry" button | Identical behaviour — entry persists, returns to Dashboard |
+| 5 | With Notes blank (invalid), tap header "Save" | Inline validation error on Notes; no save |
+| 6 | With Notes blank, tap bottom "Save Entry" | Same validation error; no save |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+
+---
+
+### TC-143 — Hours-exceeds-threshold inline warning banner
+**AC:** ST-001 (c) on mobile (Figma M3)
+**Preconditions:** Logged in as `tm1@test.local`; daily expected threshold = 8h.
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | Open Log Time, set Hours = 9 | Inline warning banner appears between form fields and Save: "⚠ 9h exceeds threshold — flagged for review / Will not block submission" |
+| 2 | Set Hours = 8 | Banner disappears |
+| 3 | Set Hours = 12 | Banner re-appears, value reflects "12h" |
+| 4 | Tap Save Entry with Hours = 9 | Entry saves with overtime flag = true; returns to Dashboard |
+| 5 | View entry on Dashboard / My Timesheets | Visual overtime indicator present (red dot, badge, etc.) |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+**Notes:** Mobile wireframe shows Hours field "8.0 h" but warning copy says "9h exceeds threshold" — minor wireframe data inconsistency, flag to UX.
+
+---
+
+### TC-144 — Log Time Cancel discards form state
+**AC:** UX (Figma M3)
+**Preconditions:** Log Time Entry open with partially filled form.
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | Fill Project=P1, Hours=4, Notes="abc" | Form has values |
+| 2 | Tap Cancel | EITHER returns to previous screen immediately OR prompts "Discard changes?" |
+| 3 | If prompt: tap Discard | Returns to previous screen; no entry saved |
+| 4 | If prompt: tap "Keep editing" | Stays on Log Time with values preserved |
+| 5 | Reopen Log Time | Form starts blank — values NOT persisted as draft |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+**Notes:** Confirm with UX whether Cancel needs a confirm prompt when form is dirty.
+
+---
+
+### TC-145 — My Timesheets row drill-in opens week detail
+**AC:** UX (Figma M4)
+**Preconditions:** Logged in as `tm1@test.local`; week 18–22 May in Submitted state with multiple per-day entries.
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | Tap "18–22 May 2026" row in My Timesheets list | Drills into week detail view |
+| 2 | Verify detail content | Per-day entries listed (Mon–Fri); per-day and weekly totals match the summary row; week-level status badge (Submitted) shown |
+| 3 | Tap browser/native back | Returns to weekly list; scroll position retained |
+| 4 | Tap a Locked-week row | Detail opens read-only — Edit / Delete actions disabled per ST-011 |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+**Notes:** Week detail screen wireframe not in supplied set — PO follow-up for layout sign-off.
+
+---
+
+### TC-146 — "+ New" on My Timesheets opens Log Time and returns to list
+**AC:** UX (Figma M4); ST-001
+**Preconditions:** Logged in as `tm1@test.local`; on My Timesheets.
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | Tap "+ New" top-right | Log Time Entry opens (full-screen) |
+| 2 | Fill a valid entry and tap Save Entry | Returns to My Timesheets (NOT Dashboard, since origin was Sheets) |
+| 3 | Verify the week containing the new entry shows updated total | Hours sum and status reflect the new entry |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+
+---
+
+### TC-147 — Approvals header pending-count badge
+**AC:** UX (Figma M5)
+**Preconditions:** Logged in as `lead1@test.local`; exactly 4 Submitted timesheets in queue.
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | Open Approvals tab | Header: "Approvals" + red circular badge "4" |
+| 2 | Swipe-right approve one row | Badge updates to "3" |
+| 3 | Swipe-left reject one row (complete reason flow) | Badge updates to "2" |
+| 4 | Drain queue to 0 | Badge disappears OR shows empty-state copy ("No pending approvals") |
+| 5 | New submission arrives (tm1 submits a week on desktop) | Badge re-appears with "1" |
+| 6 | Verify bottom-tab "Approvals" also shows count indicator if designed | Per wireframe — tab has no badge but header does; confirm whether dual indicator is required |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+
+---
+
+### TC-148 — Overtime indicator on Approval rows with overtime entries
+**AC:** UX (Figma M5); §9 overtime flag
+**Preconditions:** Logged in as `lead1@test.local`; Sarah Chen (or equivalent) has 42h with at least one overtime-flagged entry for week 18–22 May.
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | Open Approvals; locate Sarah Chen row | Row shows red dot/indicator below name; "Overtime entries" label visible in subline |
+| 2 | Verify rows for users without overtime (Mark Peters, Amy Johnson) | No red dot; no "Overtime entries" label |
+| 3 | Tap Sarah Chen row OR swipe to inspect | If detail opens, overtime entries highlighted within |
+| 4 | Approve via swipe right | Approval succeeds; overtime entries pass downstream to billing/XP as normal (verify on desktop / DB) |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+
+---
+
+### TC-149 — Admin Panel scope banner shown for scoped admins
+**AC:** ST-012 (Figma M6)
+**Preconditions:** Logged in as `admin1@test.local` (scoped). If a full-access admin is seeded, also test that account for negative.
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | Open Admin Panel as `admin1` | Blue info banner: "ⓘ You see only your assigned scope." visible directly under tab strip |
+| 2 | Switch tabs (Users / Projects / Teams) | Banner persists across all three tabs |
+| 3 | Open as Full Admin (if seeded) | Banner absent OR shows full-access copy |
+| 4 | Verify Projects tab content for `admin1` | P1 visible; P2 absent |
+| 5 | Verify Teams tab content | Alpha Squad visible; Beta Squad absent |
+| 6 | Verify Users tab content | Only Alpha Squad members visible |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+
+---
+
+### TC-150 — Admin Panel search filters Users list
+**AC:** UX (Figma M6)
+**Preconditions:** Logged in as `admin1@test.local`; Users tab active with ≥5 users in scope.
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | Tap "Search users..." input | Mobile text keyboard opens |
+| 2 | Type "sarah" | List filters to users whose name matches "sarah" (case-insensitive); non-matches hide |
+| 3 | Clear search | Full in-scope list restores |
+| 4 | Type "zzzzz" (no match) | Empty state shown ("No users match" or equivalent) |
+| 5 | Type a name belonging to an out-of-scope user (e.g. Beta Squad member) | NOT returned — search respects admin scope |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+
+---
+
+### TC-151 — Admin Panel user status dot color reflects active/inactive
+**AC:** UX (Figma M6)
+**Preconditions:** Logged in as `admin1@test.local`; ≥1 active and ≥1 deactivated user in scope (e.g. James Nkosi inactive).
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | On Users tab, inspect active user row | Green status dot to right of row, before chevron |
+| 2 | Inspect deactivated user row (James Nkosi) | Gray status dot |
+| 3 | Tap an active user, deactivate via drawer, save (uses TC-114 flow) | Returns to list; dot updates to gray without full reload |
+| 4 | Reactivate same user | Dot returns to green |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+
+---
+
+### TC-152 — Admin Panel "+ Add" opens Add User form within scope
+**AC:** ST-012 (Figma M6)
+**Preconditions:** Logged in as `admin1@test.local`.
+**Test Steps**
+| Step | Action | Expected Result |
+|------|--------|-----------------|
+| 1 | Tap "+ Add" top-right | Add User form opens (full-screen on mobile, consistent with Log Time pattern) |
+| 2 | Tap Cancel | Returns to Admin Panel; no user created |
+| 3 | Reopen, fill required fields, save | New user created within admin's scope (Alpha Squad / P1); appears in Users list; status dot green by default |
+| 4 | Try to assign Team = Beta Squad (out of scope) | Option not selectable OR validation error "Out of scope" |
+| 5 | Try to assign Role = Financial Admin | Blocked per design conflict — Admin cannot elevate to FA (TC-113) |
+
+**Status:** [ ] Pass [ ] Fail [ ] Blocked [ ] Not Tested
+**Notes:** Add User form wireframe not in supplied set — assume same full-screen pattern as Log Time. PO follow-up for layout sign-off.
+
+---
+
+## 16. Out of scope for this suite
+- Integrations (ST-015) — DevOps/JIRA/Linear ticket validation: requires live integration; covered as a separate harness once endpoints exist.
+- Future ST-018 resource planning: explicitly out of scope per §2.
+- Password reset flow (TC-064 covers nav only): full flow tested separately once reset screens are available.
+- Native mobile apps: this suite covers responsive web only. Native iOS/Android apps (if planned) need their own suite.
+- Real-device farm coverage beyond iPhone 14 / Pixel 7 / iPad portrait: BrowserStack matrix expansion deferred until baseline mobile cases pass.
+
+---
+
+**Total cases:** 152 (57 AC-based + 59 UI/wireframe-derived desktop + 36 mobile/responsive)
 **Coverage:**
 - §7 Acceptance Criteria (ST-001, 002, 003, 007, 008, 009, 010, 011, 012, 013, 014)
 - Cross-role RBAC denials
 - Audit trail spot-checks
-- TimeTrack UI flows from Figma wireframes (login, dashboard, log time modal, my timesheets, approval queue, financial admin, admin panel)
-- 5 spec/design conflicts flagged for PO confirmation
+- TimeTrack UI flows from Figma desktop wireframes (login, dashboard, log time modal, my timesheets, approval queue, financial admin, admin panel)
+- TimeTrack mobile wireframes M1–M6 (bottom-tab nav, FAB, full-screen log time, weekly-summary list, swipe approve/reject, scope-banner admin panel, orientation, network, a11y on touch)
+- 6 spec/design conflicts flagged for PO confirmation (5 desktop + Task Type discrepancy on mobile)
+- PO follow-ups: reject-reason mobile sheet, FA mobile view, week-detail mobile view, Add-User mobile form
